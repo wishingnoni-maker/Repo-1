@@ -1,0 +1,8 @@
+User First Name,User Last Name,Name,User Email,Title,Employee Region,User Supervisor Name,Employee Cell,Country,Title Code,Hire Date
+Amelia,Stone,Amelia Stone,amelia.stone@example.com,VP Operations,North America,,+1 (313) 555-0120,United States,VP-OPS,2016-02-14
+Marcus,Lee,Marcus Lee,marcus.lee@example.com,Regional Director,North America,Amelia Stone,+1 (313) 555-0188,United States,RD-NA,2018-06-11
+Priya,Patel,Priya Patel,priya.patel@example.com,HR Manager,Europe,Amelia Stone,+44 20 7946 1234,United Kingdom,HR-MGR,2019-01-07
+Jonah,Rivera,Jonah Rivera,jonah.rivera@example.com,Workforce Analyst,North America,Marcus Lee,+1 (646) 555-0192,United States,WF-ANL,2022-09-19
+Elena,Garcia,Elena Garcia,elena.garcia@example.com,Field Lead,Latin America,Unknown Supervisor,+52 55 5555 0199,Mexico,FL-LATAM,2021-03-08
+Hiro,Tanaka,Hiro Tanaka,hiro.tanaka@example.com,Operations Specialist,APAC,Priya Patel,+81 3 5555 0102,Japan,OPS-SP,2023-11-02
+Noah,Bennett,Noah Bennett,noah.bennett@example.com,,North America,Marcus Lee,31355501,United States,ANL-1,not-a-date
