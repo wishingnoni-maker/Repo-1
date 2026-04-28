@@ -30,10 +30,18 @@ jobs:
         working-directory: server
         run: npm run build
 
+      - name: Remove dev dependencies
+        working-directory: server
+        run: npm prune --omit=dev
+
       - name: Create deployment package
         run: |
           cd server
-          zip -r ../server-release.zip . -x "node_modules/*"
+          zip -r ../server-release.zip . \
+            -x ".env" \
+            -x ".env.*" \
+            -x "src/*" \
+            -x "*.tsbuildinfo"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
