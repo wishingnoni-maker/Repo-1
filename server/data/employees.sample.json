@@ -1,0 +1,52 @@
+{
+  "employees": [
+    {
+      "id": "6d3eaec6-9d89-4d01-99c7-5c47a2b75f0b",
+      "firstName": "Amelia",
+      "lastName": "Stone",
+      "fullName": "Amelia Stone",
+      "email": "amelia.stone@example.com",
+      "title": "VP Operations",
+      "employeeRegion": "North America",
+      "supervisorName": "",
+      "employeeCell": "+1 (313) 555-0120",
+      "country": "United States",
+      "titleCode": "VP-OPS",
+      "hireDate": "2016-02-14",
+      "createdAt": "2026-04-27T00:00:00.000Z",
+      "updatedAt": "2026-04-27T00:00:00.000Z"
+    },
+    {
+      "id": "6d3eaec6-9d89-4d01-99c7-5c47a2b75f0c",
+      "firstName": "Marcus",
+      "lastName": "Lee",
+      "fullName": "Marcus Lee",
+      "email": "marcus.lee@example.com",
+      "title": "Regional Director",
+      "employeeRegion": "North America",
+      "supervisorName": "Amelia Stone",
+      "employeeCell": "+1 (313) 555-0188",
+      "country": "United States",
+      "titleCode": "RD-NA",
+      "hireDate": "2018-06-11",
+      "createdAt": "2026-04-27T00:00:00.000Z",
+      "updatedAt": "2026-04-27T00:00:00.000Z"
+    },
+    {
+      "id": "6d3eaec6-9d89-4d01-99c7-5c47a2b75f0d",
+      "firstName": "Priya",
+      "lastName": "Patel",
+      "fullName": "Priya Patel",
+      "email": "priya.patel@example.com",
+      "title": "HR Manager",
+      "employeeRegion": "Europe",
+      "supervisorName": "Amelia Stone",
+      "employeeCell": "+44 20 7946 1234",
+      "country": "United Kingdom",
+      "titleCode": "HR-MGR",
+      "hireDate": "2019-01-07",
+      "createdAt": "2026-04-27T00:00:00.000Z",
+      "updatedAt": "2026-04-27T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import type { Employee } from "../types";
+import { safeDateLabel } from "./safe";
 
-export const formatDate = (value: string | null) => (value ? new Date(value).toLocaleDateString() : "Unknown");
+export const formatDate = (value: string | null) => safeDateLabel(value);
 
 export const getTenureLabel = (employee: Employee) => {
   if (!employee.hireDate) {

@@ -18,6 +18,7 @@ const headerAliases: Record<string, keyof EmployeeInput | "ignore"> = {
   employeeregion: "employeeRegion",
   region: "employeeRegion",
   usersupervisorname: "supervisorName",
+  usersupervisornamecurrent: "supervisorName",
   supervisorname: "supervisorName",
   employeecell: "employeeCell",
   cell: "employeeCell",
@@ -81,7 +82,7 @@ export const normalizeEmployeeInput = (input: Partial<EmployeeInput>): EmployeeI
     email: normalizeValue(input.email).toLowerCase(),
     title: normalizeValue(input.title),
     employeeRegion: normalizeValue(input.employeeRegion),
-    supervisorName: normalizeValue(input.supervisorName),
+    supervisorName: normalizeSupervisorDisplayName(input.supervisorName),
     employeeCell: normalizeValue(input.employeeCell),
     country: normalizeValue(input.country),
     titleCode: normalizeValue(input.titleCode),
@@ -198,3 +199,21 @@ export const groupCounts = (values: string[]) =>
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 
 export const normalizeSupervisorKey = (name: string) => slugifyName(name);
+
+export const normalizeSupervisorDisplayName = (value: unknown): string => {
+  const normalized = normalizeValue(value);
+  if (!normalized.includes(",")) {
+    return normalized;
+  }
+
+  const parts = normalized
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length < 2) {
+    return normalized;
+  }
+
+  return `${parts.slice(1).join(" ")} ${parts[0]}`.replace(/\s+/g, " ").trim();
+};

@@ -1,8 +1,9 @@
 import { Router } from "express";
 import multer from "multer";
 import type { EmployeeRepository } from "../repositories/EmployeeRepository.js";
-import { requireAdminKey } from "../middleware/admin.js";
+import { ClientService } from "../services/clientService.js";
 import { importEmployeesFromWorkbook } from "../services/importService.js";
+import { ProjectService } from "../services/projectService.js";
 
 const supportedMimeTypes = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -24,51 +25,71 @@ const upload = multer({
       callback(null, true);
       return;
     }
-
     callback(new Error("Unsupported file type. Please upload .xlsx, .xls, or .csv."));
   }
 });
 
-export const createImportRouter = (repository: EmployeeRepository) => {
-  const router = Router();
-
-  router.post("/employees", requireAdminKey, (req, res) => {
+const importRouteHandler =
+  (
+    importer: (
+      fileBuffer: Buffer,
+      fileName: string,
+      mode: "replace" | "upsert"
+    ) => Promise<unknown>
+  ) =>
+  (req: import("express").Request, res: import("express").Response) => {
     upload.single("file")(req, res, async (error) => {
       if (error) {
-        const message =
-          error instanceof Error ? error.message : "Unexpected server error.";
+        const message = error instanceof Error ? error.message : "Unexpected server error.";
         const status = message === "Unsupported file type. Please upload .xlsx, .xls, or .csv." ? 400 : 500;
         res.status(status).json({ message });
         return;
       }
-
       if (!req.file) {
-        res.status(400).json({ message: "Excel file is required." });
+        res.status(400).json({ message: "Import file is required." });
         return;
       }
-
       if (!hasSupportedExtension(req.file.originalname)) {
         res.status(400).json({ message: "Unsupported file type. Please upload .xlsx, .xls, or .csv." });
         return;
       }
 
-      const updateExisting = String(req.body.updateExisting ?? "false") === "true";
+      const mode = String(req.body.replaceExisting ?? "false") === "true" ? "replace" : "upsert";
       try {
-        const summary = await importEmployeesFromWorkbook(
-          req.file.buffer,
-          req.file.originalname,
-          repository,
-          updateExisting
-        );
-        res.json(summary);
+        res.json(await importer(req.file.buffer, req.file.originalname, mode));
       } catch (caught) {
-        const message =
-          caught instanceof Error ? caught.message : "Unexpected server error.";
+        const message = caught instanceof Error ? caught.message : "Unexpected server error.";
         const status = message === "Unsupported file type. Please upload .xlsx, .xls, or .csv." ? 400 : 500;
         res.status(status).json({ message });
       }
     });
-  });
+  };
+
+export const createImportRouter = (
+  employeeRepository: EmployeeRepository,
+  clientService: ClientService,
+  projectService: ProjectService
+) => {
+  const router = Router();
+
+  router.post(
+    "/employees",
+    importRouteHandler(async (fileBuffer, fileName, mode) =>
+      importEmployeesFromWorkbook(fileBuffer, fileName, employeeRepository, mode === "upsert")
+    )
+  );
+  router.post(
+    "/clients",
+    importRouteHandler(async (fileBuffer, fileName, mode) =>
+      clientService.importFromWorkbook(fileBuffer, fileName, mode)
+    )
+  );
+  router.post(
+    "/projects",
+    importRouteHandler(async (fileBuffer, fileName, mode) =>
+      projectService.importFromWorkbook(fileBuffer, fileName, mode)
+    )
+  );
 
   return router;
 };

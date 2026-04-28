@@ -58,19 +58,130 @@ export interface PaginatedEmployees {
   totalPages: number;
 }
 
+export interface Client {
+  id: string;
+  clientName: string;
+  clientStatus: string;
+  clientInvoiceCurrency: string;
+  clientContact: string;
+  clientDescription: string;
+  clientManager: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientInput {
+  clientName: string;
+  clientStatus: string;
+  clientInvoiceCurrency: string;
+  clientContact: string;
+  clientDescription: string;
+  clientManager: string;
+}
+
+export interface ClientFilters {
+  search?: string;
+  clientStatus?: string;
+  clientInvoiceCurrency?: string;
+  clientManager?: string;
+  missingContact?: boolean;
+  missingDescription?: boolean;
+  missingManager?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedClients {
+  data: Client[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface Project {
+  id: string;
+  projectName: string;
+  projectEstimatedHrs: number | null;
+  projectStatus: string;
+  projectCurrency: string;
+  projectManager: string;
+  projectManagerEmail: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
+  projectDescription: string;
+  budgetHours: number | null;
+  budgetCost: number | null;
+  expenseBudgetProjectCurrency: number | null;
+  projectRegion: string;
+  poNumber: string;
+  projectSoldBy: string;
+  numberOfResources: number | null;
+  numberOfWorkWeeks: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectInput {
+  projectName: string;
+  projectEstimatedHrs: number | null;
+  projectStatus: string;
+  projectCurrency: string;
+  projectManager: string;
+  projectManagerEmail: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
+  projectDescription: string;
+  budgetHours: number | null;
+  budgetCost: number | null;
+  expenseBudgetProjectCurrency: number | null;
+  projectRegion: string;
+  poNumber: string;
+  projectSoldBy: string;
+  numberOfResources: number | null;
+  numberOfWorkWeeks: number | null;
+}
+
+export interface ProjectFilters {
+  search?: string;
+  manager?: string;
+  managerEmail?: string;
+  poNumber?: string;
+  soldBy?: string;
+  projectStatus?: string;
+  projectRegion?: string;
+  projectCurrency?: string;
+  missingPoNumber?: boolean;
+  missingManager?: boolean;
+  missingManagerEmail?: boolean;
+  missingStartDate?: boolean;
+  missingEndDate?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaginatedProjects {
+  data: Project[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface ImportRowResult {
   rowNumber: number;
   status: "imported" | "updated" | "skipped";
-  email?: string;
+  key?: string;
   reason?: string;
 }
 
 export interface ImportSummary {
   totalRows: number;
-  successfullyImported: number;
-  updatedRecords: number;
+  importedRows: number;
+  updatedRows: number;
   skippedRows: number;
-  duplicateEmails: string[];
+  duplicateRows: string[];
+  errors: string[];
   missingRequiredFields: Array<{
     rowNumber: number;
     fields: string[];
@@ -86,25 +197,28 @@ export interface BulkUpdatePayload {
 }
 
 export interface DataQualityIssue {
-  type:
-    | "missing_email"
-    | "duplicate_email"
-    | "missing_title"
-    | "missing_supervisor"
-    | "invalid_hire_date"
-    | "missing_region_or_country"
-    | "phone_format"
-    | "title_code_without_title"
-    | "supervisor_not_found";
-  severity: "warning" | "error";
-  employeeId?: string;
-  employeeName?: string;
+  type: string;
+  severity: "warning" | "error" | "info";
+  entityType: "employee" | "client" | "project";
+  entityId?: string;
+  entityName?: string;
   email?: string;
   message: string;
 }
 
+export interface DataQualitySummary {
+  employees: DataQualityIssue[];
+  clients: DataQualityIssue[];
+  projects: DataQualityIssue[];
+}
+
 export interface DashboardSummary {
   totalEmployees: number;
+  totalClients: number;
+  totalProjects: number;
+  activeProjects: number;
+  projectsMissingPoNumber: number;
+  clientsMissingManager: number;
   employeesByRegion: Array<{ label: string; value: number }>;
   employeesByCountry: Array<{ label: string; value: number }>;
   employeesByTitle: Array<{ label: string; value: number }>;
@@ -113,4 +227,28 @@ export interface DashboardSummary {
   longestTenuredEmployees: Employee[];
   largestSupervisorTeams: Array<{ supervisorName: string; teamSize: number }>;
   missingDataWarnings: DataQualityIssue[];
+}
+
+export interface ClientSummary {
+  totalClients: number;
+  activeClients: number;
+  inactiveOrOtherClients: number;
+  clientsMissingContact: number;
+  clientsMissingDescription: number;
+  clientsMissingManager: number;
+}
+
+export interface ProjectSummary {
+  totalProjects: number;
+  activeProjects: number;
+  completedProjects: number;
+  projectsMissingManager: number;
+  projectsMissingManagerEmail: number;
+  projectsMissingPoNumber: number;
+  totalEstimatedHours: number;
+  totalBudgetHours: number;
+  totalBudgetCost: number;
+  totalExpenseBudget: number;
+  averageNumberOfResources: number;
+  averageNumberOfWorkWeeks: number;
 }

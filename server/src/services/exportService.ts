@@ -1,23 +1,28 @@
 import { stringify } from "csv-stringify/sync";
-import type { DataQualityIssue, Employee } from "../types.js";
+import type { Client, DataQualityIssue, Employee, Project } from "../types.js";
 
 export const employeesToCsv = (employees: Employee[]): string =>
+  stringify(employees, { header: true });
+
+export const clientsToCsv = (clients: Client[]): string =>
+  stringify(clients, { header: true });
+
+export const projectsToCsv = (projects: Project[]): string =>
+  stringify(projects, { header: true });
+
+export const projectFinancialsToCsv = (projects: Project[]): string =>
   stringify(
-    employees.map((employee) => ({
-      id: employee.id,
-      firstName: employee.firstName,
-      lastName: employee.lastName,
-      fullName: employee.fullName,
-      email: employee.email,
-      title: employee.title,
-      employeeRegion: employee.employeeRegion,
-      supervisorName: employee.supervisorName,
-      employeeCell: employee.employeeCell,
-      country: employee.country,
-      titleCode: employee.titleCode,
-      hireDate: employee.hireDate,
-      createdAt: employee.createdAt,
-      updatedAt: employee.updatedAt
+    projects.map((project) => ({
+      projectName: project.projectName,
+      projectCurrency: project.projectCurrency,
+      projectEstimatedHrs: project.projectEstimatedHrs,
+      budgetHours: project.budgetHours,
+      budgetCost: project.budgetCost,
+      expenseBudgetProjectCurrency: project.expenseBudgetProjectCurrency,
+      poNumber: project.poNumber,
+      projectRegion: project.projectRegion,
+      projectManager: project.projectManager,
+      projectSoldBy: project.projectSoldBy
     })),
     { header: true }
   );

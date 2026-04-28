@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
 import { formatDate, getTenureLabel } from "../lib/format";
+import { isMissing, safeString } from "../lib/safe";
 import type { EmployeeDetailResponse } from "../types";
 
 interface EmployeeDrawerProps {
@@ -13,6 +14,8 @@ export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
   }
 
   const { employee, supervisor, directReports, relatedEmployees } = detail;
+  const renderValue = (value: unknown) =>
+    isMissing(value) ? <span className="missing-badge">Missing</span> : <strong>{safeString(value)}</strong>;
 
   return (
     <aside className="drawer">
@@ -30,23 +33,23 @@ export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
       <div className="profile-card">
         <div>
           <span>Email</span>
-          <strong>{employee.email}</strong>
+          {renderValue(employee.email)}
         </div>
         <div>
           <span>Cell</span>
-          <strong>{employee.employeeCell || "N/A"}</strong>
+          {renderValue(employee.employeeCell)}
         </div>
         <div>
           <span>Country</span>
-          <strong>{employee.country || "N/A"}</strong>
+          {renderValue(employee.country)}
         </div>
         <div>
           <span>Region</span>
-          <strong>{employee.employeeRegion || "N/A"}</strong>
+          {renderValue(employee.employeeRegion)}
         </div>
         <div>
           <span>Supervisor</span>
-          <strong>{supervisor?.fullName || employee.supervisorName || "N/A"}</strong>
+          {renderValue(supervisor?.fullName || employee.supervisorName)}
         </div>
         <div>
           <span>Hire / Tenure</span>
@@ -56,7 +59,7 @@ export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
         </div>
         <div>
           <span>Title code</span>
-          <strong>{employee.titleCode || "N/A"}</strong>
+          {renderValue(employee.titleCode)}
         </div>
       </div>
 

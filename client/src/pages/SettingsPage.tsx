@@ -10,7 +10,7 @@ export function SettingsPage() {
         </div>
         <div className="settings-copy">
           <p>
-            Use the root <code>.env</code> file to define <code>ADMIN_KEY</code>, the data provider, and Azure SQL credentials.
+            Use the root <code>.env</code> file to define the data provider and any future Azure SQL credentials.
           </p>
           <p>
             Local development defaults to JSON storage at <code>server/data/employees.json</code>. Switching

@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { EmployeeRepository } from "../repositories/EmployeeRepository.js";
-import { requireAdminKey } from "../middleware/admin.js";
 import { employeeInputSchema, normalizeEmployeeInput } from "../utils/employee.js";
 
 export const createEmployeeRouter = (repository: EmployeeRepository) => {
@@ -56,7 +55,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
     res.json({ employee, supervisor: supervisor ?? null, directReports, relatedEmployees });
   });
 
-  router.post("/", requireAdminKey, async (req, res) => {
+  router.post("/", async (req, res) => {
     const normalized = normalizeEmployeeInput(req.body);
     const parsed = employeeInputSchema.safeParse(normalized);
     if (!parsed.success) {
@@ -72,7 +71,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
     res.status(201).json(created);
   });
 
-  router.put("/:id", requireAdminKey, async (req, res) => {
+  router.put("/:id", async (req, res) => {
     const normalized = normalizeEmployeeInput(req.body);
     const parsed = employeeInputSchema.partial().safeParse(normalized);
     if (!parsed.success) {
@@ -87,7 +86,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
     res.json(updated);
   });
 
-  router.delete("/:id", requireAdminKey, async (req, res) => {
+  router.delete("/:id", async (req, res) => {
     const deleted = await repository.delete(String(req.params.id));
     if (!deleted) {
       return res.status(404).json({ message: "Employee not found." });
@@ -95,7 +94,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
     res.status(204).send();
   });
 
-  router.post("/bulk-delete", requireAdminKey, async (req, res) => {
+  router.post("/bulk-delete", async (req, res) => {
     const payload = z.object({ ids: z.array(z.string()).min(1) }).safeParse(req.body);
     if (!payload.success) {
       return res.status(400).json({ message: payload.error.issues });
@@ -104,7 +103,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
     res.json({ deletedCount });
   });
 
-  router.post("/bulk-update", requireAdminKey, async (req, res) => {
+  router.post("/bulk-update", async (req, res) => {
     const payload = z
       .object({
         ids: z.array(z.string()).min(1),

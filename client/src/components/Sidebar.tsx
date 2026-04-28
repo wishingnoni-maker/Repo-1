@@ -4,6 +4,8 @@ const items = [
   { to: "/", label: "Dashboard" },
   { to: "/employees", label: "Employees" },
   { to: "/import", label: "Import Excel" },
+  { to: "/clients", label: "Clients" },
+  { to: "/projects", label: "Projects" },
   { to: "/org", label: "Org View" },
   { to: "/data-quality", label: "Data Quality" },
   { to: "/reports", label: "Reports / Export" },
