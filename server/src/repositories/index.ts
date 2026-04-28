@@ -1,10 +1,44 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import sqlPkg from "mssql";
 import type { EmployeeRepository } from "./EmployeeRepository.js";
 import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
 import { SqlEmployeeRepository } from "./SqlEmployeeRepository.js";
+import { resolveServerDataPath } from "../utils/paths.js";
 
 const sql = sqlPkg as any;
+
+const resolveEmployeeDataPath = () => {
+  const configuredPath = process.env.JSON_DATA_PATH?.trim();
+
+  if (!configuredPath) {
+    return resolveServerDataPath("employees.json");
+  }
+
+  if (path.isAbsolute(configuredPath)) {
+    return configuredPath;
+  }
+
+  const normalizedConfiguredPath = configuredPath.replace(/\\/g, "/");
+  if (
+    path.basename(process.cwd()) === "server" &&
+    (normalizedConfiguredPath === "./server/data/employees.json" ||
+      normalizedConfiguredPath === "server/data/employees.json")
+  ) {
+    return resolveServerDataPath("employees.json");
+  }
+
+  const cwdResolved = path.resolve(process.cwd(), configuredPath);
+  if (existsSync(cwdResolved)) {
+    return cwdResolved;
+  }
+
+  if (configuredPath.endsWith("employees.json")) {
+    return resolveServerDataPath("employees.json");
+  }
+
+  return cwdResolved;
+};
 
 export const createEmployeeRepository = (): EmployeeRepository => {
   const provider = process.env.DATA_PROVIDER ?? "json";
@@ -22,8 +56,6 @@ export const createEmployeeRepository = (): EmployeeRepository => {
     });
   }
 
-  const filePath = process.env.JSON_DATA_PATH
-    ? path.resolve(process.cwd(), process.env.JSON_DATA_PATH)
-    : path.resolve(process.cwd(), "data/employees.json");
+  const filePath = resolveEmployeeDataPath();
   return new JsonEmployeeRepository(filePath);
 };

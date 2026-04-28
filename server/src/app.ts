@@ -17,10 +17,21 @@ export const createApp = () => {
   const repository = createEmployeeRepository();
   const clientService = new ClientService();
   const projectService = new ProjectService();
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "https://kind-plant-0b9c4f610.7.azurestaticapps.net",
+    ...(process.env.CLIENT_URL?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? [])
+  ];
 
   app.use(
     cors({
-      origin: process.env.CLIENT_URL?.split(",") ?? "*"
+      origin(origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error("CORS origin not allowed."));
+      }
     })
   );
   app.use(express.json({ limit: "10mb" }));
