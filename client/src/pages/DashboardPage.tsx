@@ -37,10 +37,22 @@ interface DashboardPageProps {
 
 export function DashboardPage({ refreshToken }: DashboardPageProps) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api.getDashboard().then(setSummary).catch(console.error);
+    setError("");
+    setSummary(null);
+    api
+      .getDashboard()
+      .then(setSummary)
+      .catch((caught) =>
+        setError(caught instanceof Error ? caught.message : "Dashboard failed to load.")
+      );
   }, [refreshToken]);
+
+  if (error) {
+    return <div className="error-text">{error}</div>;
+  }
 
   if (!summary) {
     return <div className="empty-state">Loading dashboard...</div>;

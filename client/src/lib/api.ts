@@ -17,7 +17,9 @@ import type {
   ProjectListResponse
 } from "../types";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000/api";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL?.trim() ||
+  "http://localhost:4000/api";
 
 const buildQuery = (params: object) => {
   const searchParams = new URLSearchParams();
@@ -30,7 +32,12 @@ const buildQuery = (params: object) => {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, init);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, init);
+  } catch {
+    throw new Error("API request failed. Check VITE_API_BASE_URL or backend availability.");
+  }
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "Request failed." }));
     throw new Error(error.message ?? "Request failed.");
