@@ -9,8 +9,10 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const port = Number(process.env.PORT ?? 4000);
+const host = "0.0.0.0";
+
 const app = createApp();
 
-app.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Server listening on http://${host}:${port}`);
 });
