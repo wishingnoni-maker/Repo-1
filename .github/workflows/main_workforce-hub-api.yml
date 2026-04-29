@@ -30,9 +30,11 @@ jobs:
         working-directory: server
         run: npm run build
 
-      - name: Remove dev dependencies
+      - name: Install production dependencies only
         working-directory: server
-        run: npm prune --omit=dev
+        run: |
+          rm -rf node_modules
+          npm ci --omit=dev
 
       - name: Create deployment package
         run: |
