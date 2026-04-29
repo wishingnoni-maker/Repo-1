@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,52 +15,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js version
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20.x"
 
-      - name: Install all server dependencies
-        working-directory: server
-        run: npm ci
-
-      - name: Build server
-        working-directory: server
-        run: npm run build
-
-      - name: Replace with production dependencies
-        working-directory: server
+      - name: Install, build, and prune server
         run: |
+          npm ci --workspace server
+          npm run build --workspace server
           rm -rf node_modules
-          npm ci --omit=dev
+          npm ci --omit=dev --workspace server
 
-      - name: Create deployment package
+      - name: Create clean deployment folder
         run: |
-          cd server
-          zip -r ../server-release.zip . \
-            -x ".env" \
-            -x ".env.*" \
-            -x "src/*" \
-            -x "*.tsbuildinfo"
+          rm -rf deploy
+          mkdir deploy
+          cp server/package.json deploy/package.json
+          cp package-lock.json deploy/package-lock.json
+          cp -R server/dist deploy/dist
+          cp -R node_modules deploy/node_modules
+          if [ -d server/data ]; then cp -R server/data deploy/data; fi
 
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-app
-          path: server-release.zip
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: node-app
-
-      - name: Unzip deployment package
-        run: unzip server-release.zip -d server-release
+      - name: Verify deployment folder
+        run: |
+          echo "Current folder:"
+          pwd
+          echo "Deploy folder:"
+          ls -la deploy
+          echo "Dist folder:"
+          ls -la deploy/dist
+          echo "Required file checks:"
+          test -f deploy/package.json
+          test -f deploy/package-lock.json
+          test -f deploy/dist/index.js
+          test -d deploy/node_modules
+          test -d deploy/node_modules/dotenv
+          test -d deploy/node_modules/express
+          test -d deploy/node_modules/cors
+          if [ -d deploy/data ]; then ls -la deploy/data; fi
+          cd deploy
+          node -e "import('dotenv').then(() => console.log('dotenv import ok'))"
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
@@ -68,6 +63,5 @@ jobs:
         with:
           app-name: "workforce-hub-api"
           slot-name: "Production"
-          package: server-release
+          package: deploy
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1D02B99A932F4C4CAC7394B20AF1DA3A }}
-          
