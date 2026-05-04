@@ -2,9 +2,17 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import sqlPkg from "mssql";
 import type { EmployeeRepository } from "./EmployeeRepository.js";
-import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
-import { SqlEmployeeRepository } from "./SqlEmployeeRepository.js";
+import type { ClientRepository } from "./ClientRepository.js";
+import type { ProjectRepository } from "./ProjectRepository.js";
+import { hasDatabaseUrl, getDbPool } from "../db/pool.js";
 import { resolveServerDataPath } from "../utils/paths.js";
+import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
+import { JsonClientRepository } from "./JsonClientRepository.js";
+import { JsonProjectRepository } from "./JsonProjectRepository.js";
+import { SqlEmployeeRepository } from "./SqlEmployeeRepository.js";
+import { PostgresEmployeeRepository } from "./postgresEmployeeRepository.js";
+import { PostgresClientRepository } from "./postgresClientRepository.js";
+import { PostgresProjectRepository } from "./postgresProjectRepository.js";
 
 const sql = sqlPkg as any;
 
@@ -43,6 +51,10 @@ const resolveEmployeeDataPath = () => {
 export const createEmployeeRepository = (): EmployeeRepository => {
   const provider = process.env.DATA_PROVIDER ?? "json";
 
+  if (hasDatabaseUrl() || provider === "postgres") {
+    return new PostgresEmployeeRepository(getDbPool());
+  }
+
   if (provider === "sql") {
     return new SqlEmployeeRepository({
       server: process.env.AZURE_SQL_SERVER ?? "",
@@ -58,4 +70,24 @@ export const createEmployeeRepository = (): EmployeeRepository => {
 
   const filePath = resolveEmployeeDataPath();
   return new JsonEmployeeRepository(filePath);
+};
+
+export const createClientRepository = (): ClientRepository => {
+  const provider = process.env.DATA_PROVIDER ?? "json";
+
+  if (hasDatabaseUrl() || provider === "postgres") {
+    return new PostgresClientRepository(getDbPool());
+  }
+
+  return new JsonClientRepository(resolveServerDataPath("clients.json"));
+};
+
+export const createProjectRepository = (): ProjectRepository => {
+  const provider = process.env.DATA_PROVIDER ?? "json";
+
+  if (hasDatabaseUrl() || provider === "postgres") {
+    return new PostgresProjectRepository(getDbPool());
+  }
+
+  return new JsonProjectRepository(resolveServerDataPath("projects.json"));
 };

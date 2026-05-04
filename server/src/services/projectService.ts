@@ -7,91 +7,54 @@ import type {
   ProjectSummary
 } from "../types.js";
 import { groupCounts } from "../utils/employee.js";
-import { resolveServerDataPath } from "../utils/paths.js";
+import { createProjectRepository } from "../repositories/index.js";
 import {
-  createProjectRecord,
   findMissingProjectFields,
   mapRowToProjectInput,
-  matchesProjectFilters,
-  mergeProjectRecord,
   normalizeProjectInput,
   projectInputSchema
 } from "../utils/project.js";
 import { normalizeValue } from "../utils/text.js";
-import { readJsonCollection, writeJsonCollection } from "./jsonStore.js";
 import { readRowsFromWorkbook } from "./importService.js";
-
-const DATA_PATH = resolveServerDataPath("projects.json");
-const DATA_KEY = "projects";
+import type { ProjectRepository } from "../repositories/ProjectRepository.js";
 
 const projectKey = (value: string) => normalizeValue(value).toLowerCase();
 
 const numeric = (value: number | null) => value ?? 0;
 
-const sortProjects = (projects: Project[]) =>
-  [...projects].sort((a, b) => a.projectName.localeCompare(b.projectName));
-
 export class ProjectService {
+  constructor(private readonly repository: ProjectRepository = createProjectRepository()) {}
+
   async getAll(): Promise<Project[]> {
-    return readJsonCollection<Project>(DATA_PATH, DATA_KEY);
+    return this.repository.getAll();
   }
 
   async saveAll(projects: Project[]): Promise<void> {
-    await writeJsonCollection(DATA_PATH, DATA_KEY, projects);
+    await this.repository.saveAll(projects);
   }
 
   async query(filters: ProjectFilters): Promise<PaginatedProjects> {
-    const projects = await this.getAll();
-    const page = filters.page ?? 1;
-    const pageSize = filters.pageSize ?? 25;
-    const filtered = sortProjects(projects.filter((project) => matchesProjectFilters(project, filters)));
-    const start = (page - 1) * pageSize;
-    return {
-      data: filtered.slice(start, start + pageSize),
-      total: filtered.length,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(filtered.length / pageSize))
-    };
+    return this.repository.query(filters);
   }
 
   async getById(id: string): Promise<Project | null> {
-    const projects = await this.getAll();
-    return projects.find((project) => project.id === id) ?? null;
+    return this.repository.getById(id);
   }
 
   async getByName(name: string): Promise<Project | null> {
-    const projects = await this.getAll();
-    return projects.find((project) => projectKey(project.projectName) === projectKey(name)) ?? null;
+    return this.repository.getByName(name);
   }
 
   async create(input: ProjectInput): Promise<Project> {
-    const projects = await this.getAll();
-    const created = createProjectRecord(input);
-    projects.push(created);
-    await this.saveAll(projects);
-    return created;
+    return this.repository.create(input);
   }
 
   async update(id: string, input: Partial<ProjectInput>): Promise<Project | null> {
-    const projects = await this.getAll();
-    const index = projects.findIndex((project) => project.id === id);
-    if (index === -1) {
-      return null;
-    }
-    projects[index] = mergeProjectRecord(projects[index], input);
-    await this.saveAll(projects);
-    return projects[index];
+    return this.repository.update(id, input);
   }
 
   async delete(id: string): Promise<boolean> {
-    const projects = await this.getAll();
-    const next = projects.filter((project) => project.id !== id);
-    if (next.length === projects.length) {
-      return false;
-    }
-    await this.saveAll(next);
-    return true;
+    return this.repository.delete(id);
   }
 
   async importFromWorkbook(
@@ -145,7 +108,13 @@ export class ProjectService {
       const key = projectKey(data.projectName);
       const current = nextByName.get(key);
       if (!current) {
-        const created = createProjectRecord(data);
+        const timestamp = new Date().toISOString();
+        const created: Project = {
+          id: crypto.randomUUID(),
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
         nextProjects.push(created);
         nextByName.set(key, created);
         importedRows += 1;
@@ -153,7 +122,11 @@ export class ProjectService {
         return;
       }
 
-      const updated = mergeProjectRecord(current, data);
+      const updated: Project = {
+        ...current,
+        ...normalizeProjectInput(data),
+        updatedAt: new Date().toISOString()
+      };
       const index = nextProjects.findIndex((project) => project.id === current.id);
       nextProjects[index] = updated;
       nextByName.set(key, updated);

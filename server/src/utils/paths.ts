@@ -5,7 +5,13 @@ export const resolveServerDataPath = (fileName: string) => {
   const directDataPath = path.resolve(process.cwd(), "data", fileName);
   const nestedServerDataPath = path.resolve(process.cwd(), "server", "data", fileName);
 
-  if (existsSync(directDataPath)) {
+  if (path.basename(process.cwd()) === "server") {
+    if (existsSync(directDataPath)) {
+      return directDataPath;
+    }
+    if (existsSync(nestedServerDataPath)) {
+      return nestedServerDataPath;
+    }
     return directDataPath;
   }
 
@@ -13,7 +19,9 @@ export const resolveServerDataPath = (fileName: string) => {
     return nestedServerDataPath;
   }
 
-  return path.basename(process.cwd()) === "server"
-    ? directDataPath
-    : nestedServerDataPath;
+  if (existsSync(directDataPath)) {
+    return directDataPath;
+  }
+
+  return nestedServerDataPath;
 };

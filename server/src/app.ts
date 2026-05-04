@@ -1,6 +1,10 @@
 import cors from "cors";
 import express from "express";
-import { createEmployeeRepository } from "./repositories/index.js";
+import {
+  createClientRepository,
+  createEmployeeRepository,
+  createProjectRepository
+} from "./repositories/index.js";
 import { createClientRouter } from "./routes/clients.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
 import { createDataQualityRouter } from "./routes/dataQuality.js";
@@ -15,8 +19,8 @@ import { ProjectService } from "./services/projectService.js";
 export const createApp = () => {
   const app = express();
   const repository = createEmployeeRepository();
-  const clientService = new ClientService();
-  const projectService = new ProjectService();
+  const clientService = new ClientService(createClientRepository());
+  const projectService = new ProjectService(createProjectRepository());
   const allowedOrigins = [
     "http://localhost:5173",
     "https://kind-plant-0b9c4f610.7.azurestaticapps.net",

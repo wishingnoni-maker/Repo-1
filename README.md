@@ -1,12 +1,12 @@
-# Employee Directory and Workforce Management App
+# Workforce Hub
 
-Full-stack CRUD application for importing employee records from Excel, browsing a searchable directory, reviewing workforce analytics, exploring supervisor hierarchies, and exporting HR/data-quality reports.
+Full-stack operations hub for employees, clients, and projects with import, CRUD, analytics, org structure, data quality, and export workflows.
 
 ## Stack
 
 - Frontend: React + TypeScript + Vite
 - Backend: Node.js + Express + TypeScript
-- Database: Azure SQL compatible schema with local JSON fallback
+- Database: PostgreSQL with JSON fallback kept for local/demo safety
 - Excel parsing: `xlsx`
 - Charts: `recharts`
 
@@ -15,7 +15,8 @@ Full-stack CRUD application for importing employee records from Excel, browsing 
 ```text
 /client      React admin UI
 /server      Express API, import pipeline, repository layer
-/database    Azure SQL schema
+/database    Legacy schema/reference assets
+/server/database PostgreSQL schema
 /sample-data CSV seed for testing imports
 README.md
 .env.example
@@ -23,16 +24,16 @@ README.md
 
 ## Features
 
-- Excel import with normalized header matching and row-level validation
+- Excel/CSV import with normalized header matching and row-level validation
 - Import summary showing totals, duplicates, skipped rows, and missing required fields
-- Employee directory with pagination, search, filters, and sort options
+- Employee, client, and project directory workflows with pagination, search, filters, and sort options
 - Single-record create, edit, delete, plus bulk delete and bulk update
-- Employee detail drawer with supervisor info, direct reports, and related employees
-- Dashboard with employee counts, charts, newest hires, longest tenure, and team size stats
+- Detail drawers plus edit/delete flows across employees, clients, and projects
+- Dashboard with employee, client, and project counts plus supporting charts and summaries
 - Org view grouped by supervisor name, including unmatched supervisor flags
-- Data quality page with issue detection and CSV export
-- CSV export for all employees, filtered employees, data-quality issues, and supervisor reports
-- `ADMIN_KEY` protection for import and mutating/destructive actions
+- Data quality page with employee/client/project issue detection and CSV export
+- CSV export for employees, clients, projects, project financials, data-quality issues, and supervisor reports
+- PostgreSQL seed and verification scripts using the provided source CSV files
 
 ## Local Setup
 
@@ -48,7 +49,7 @@ npm install
 cp .env.example .env
 ```
 
-3. Optional: preload sample JSON data for local mode:
+3. Optional JSON fallback mode:
 
 ```bash
 cp server/data/employees.sample.json server/data/employees.json
@@ -68,12 +69,50 @@ npm run dev:client
 
 6. Open the frontend at [http://localhost:5173](http://localhost:5173). The API defaults to [http://localhost:4000/api](http://localhost:4000/api).
 
-## Importing Excel
+## PostgreSQL Setup
+
+The backend now supports PostgreSQL when `DATABASE_URL` is set.
+
+1. Start a local PostgreSQL instance.
+   If Docker is available:
+
+```bash
+docker compose up -d
+```
+
+2. Apply the schema:
+
+```bash
+cd server
+npm run db:schema
+```
+
+3. Seed from the provided source CSV files:
+
+```bash
+npm run db:seed
+```
+
+4. Verify preserved counts and dashboard-equivalent summary values:
+
+```bash
+npm run db:verify
+```
+
+5. To reset and reseed:
+
+```bash
+npm run db:reset
+```
+
+If `DATABASE_URL` is not set, the app continues to use JSON persistence from `server/data/*.json`.
+
+## Importing Excel / CSV
 
 1. Go to the `Import Excel` page.
-2. Enter the configured `ADMIN_KEY`.
-3. Upload an `.xlsx` or `.xls` workbook.
-4. The API reads the first worksheet and maps headers like:
+2. Choose `Employees`, `Clients`, or `Projects`.
+3. Upload a `.csv`, `.xlsx`, or `.xls` file.
+4. The API reads the first worksheet or CSV and maps headers like:
    - `User First Name`
    - `User Last Name`
    - `Name`
@@ -85,9 +124,11 @@ npm run dev:client
    - `Country`
    - `Title Code`
    - `Hire Date`
-5. Set `Update existing employees` if matching emails should overwrite existing records.
-
-Use [sample-data/employees-sample.csv](/Users/govindkishan/Documents/Codex/2026-04-27/files-mentioned-by-the-user-employee/sample-data/employees-sample.csv) as a starter dataset. You can open it in Excel and save it as `.xlsx` if you want a workbook for upload testing.
+   - `Client Name`
+   - `Project Name`
+   - `Budget Cost`
+   - `Expense Budget (Project Currency)`
+5. The import writes into PostgreSQL when `DATABASE_URL` is configured, otherwise it writes into the JSON fallback files.
 
 ## Environment Variables
 
@@ -95,32 +136,29 @@ Use [sample-data/employees-sample.csv](/Users/govindkishan/Documents/Codex/2026-
 | --- | --- |
 | `PORT` | Backend port |
 | `CLIENT_URL` | Allowed frontend origin(s) |
-| `ADMIN_KEY` | Required for import/create/update/delete/bulk operations |
-| `DATA_PROVIDER` | `json` or `sql` |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `DATA_PROVIDER` | `json`, `postgres`, or legacy `sql` |
 | `JSON_DATA_PATH` | Local file path for JSON persistence |
-| `AZURE_SQL_*` | Azure SQL connection settings |
+| `EMPLOYEE_SOURCE_CSV` | Employee seed source CSV path |
+| `CLIENT_SOURCE_CSV` | Client seed source CSV path |
+| `PROJECT_SOURCE_CSV` | Project seed source CSV path |
+| `AZURE_SQL_*` | Legacy Azure SQL connection settings |
 
-## Azure SQL Setup
+## PostgreSQL Schema
 
-1. Provision an Azure SQL Database and allow your app/service IPs.
-2. Run [database/schema.sql](/Users/govindkishan/Documents/Codex/2026-04-27/files-mentioned-by-the-user-employee/database/schema.sql) against the database.
-3. Set:
+Run [server/database/schema.sql](/Users/govindkishan/Documents/Codex/2026-04-27/files-mentioned-by-the-user-employee/server/database/schema.sql) against your PostgreSQL database. The schema includes:
 
-```env
-DATA_PROVIDER=sql
-AZURE_SQL_SERVER=your-server.database.windows.net
-AZURE_SQL_DATABASE=your-database
-AZURE_SQL_USER=your-user
-AZURE_SQL_PASSWORD=your-password
-AZURE_SQL_ENCRYPT=true
-AZURE_SQL_TRUST_SERVER_CERTIFICATE=false
-```
-
-4. Restart the server.
+- `employees`
+- `clients`
+- `projects`
+- indexes for the main filter/sort fields
+- a shared `updated_at` trigger
 
 ## API Routes
 
 - `POST /api/import/employees`
+- `POST /api/import/clients`
+- `POST /api/import/projects`
 - `GET /api/employees`
 - `GET /api/employees/:id`
 - `POST /api/employees`
@@ -128,12 +166,51 @@ AZURE_SQL_TRUST_SERVER_CERTIFICATE=false
 - `DELETE /api/employees/:id`
 - `POST /api/employees/bulk-delete`
 - `POST /api/employees/bulk-update`
+- `GET /api/clients`
+- `GET /api/clients/:id`
+- `POST /api/clients`
+- `PUT /api/clients/:id`
+- `DELETE /api/clients/:id`
+- `GET /api/projects`
+- `GET /api/projects/:id`
+- `POST /api/projects`
+- `PUT /api/projects/:id`
+- `DELETE /api/projects/:id`
 - `GET /api/dashboard/summary`
 - `GET /api/org/supervisors`
 - `GET /api/data-quality`
 - `GET /api/export/employees`
+- `GET /api/export/clients`
+- `GET /api/export/projects`
+- `GET /api/export/project-financials`
 - `GET /api/export/data-quality`
+- `GET /api/export/client-data-quality`
+- `GET /api/export/project-data-quality`
 - `GET /api/export/supervisor-report`
+
+## Azure PostgreSQL Deployment Notes
+
+1. Create an Azure Database for PostgreSQL Flexible Server or use your team-provided PostgreSQL instance.
+2. Set:
+
+```env
+DATABASE_URL=postgresql://username:password@hostname:5432/workforce_hub
+```
+
+3. If your PostgreSQL server requires SSL, set either:
+
+```env
+DATABASE_SSL=true
+```
+
+or:
+
+```env
+PGSSLMODE=require
+```
+
+4. Run the schema and one-time seed against the production database.
+5. Deploy the backend. The existing frontend can keep using the same `VITE_API_BASE_URL`.
 
 ## Azure Deployment Notes
 
@@ -141,7 +218,7 @@ AZURE_SQL_TRUST_SERVER_CERTIFICATE=false
 
 1. Create an Azure App Service for Node.js.
 2. Add environment variables from `.env`.
-3. Ensure `DATA_PROVIDER=sql` for production unless you intentionally want file storage.
+3. Set `DATABASE_URL` for PostgreSQL-backed production.
 4. Build command:
 
 ```bash
@@ -176,6 +253,6 @@ If you want one Azure App Service deployment, you can build the client separatel
 
 ## Notes
 
-- The local JSON repository is intentionally simple and useful for demos, local development, and environments where Azure SQL is not configured yet.
-- SQL mode uses the same normalized employee shape and route contract as JSON mode.
-- The sample dataset intentionally includes a few data-quality issues to exercise the warning screens.
+- PostgreSQL mode is designed to preserve the existing API contract and frontend behavior.
+- The local JSON repository is still available as a fallback/reference path while the DB rollout is being verified.
+- The seed/verify scripts expect the provided employee, client, and project CSV files unless you override the paths with env vars.

@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm run build && node dist/index.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "lint": "tsc --noEmit -p tsconfig.json"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "db:schema": "node --import tsx ./scripts/applySchema.ts",
+    "db:seed": "node --import tsx ./scripts/seedDatabase.ts",
+    "db:reset": "node --import tsx ./scripts/resetDatabase.ts",
+    "db:verify": "node --import tsx ./scripts/verifyDatabase.ts",
+    "db:check": "node --import tsx ./scripts/verifyDatabase.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -16,6 +21,7 @@
     "express": "^5.0.1",
     "multer": "^1.4.5-lts.1",
     "mssql": "^11.0.1",
+    "pg": "^8.13.1",
     "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
@@ -24,6 +30,7 @@
     "@types/express": "^5.0.0",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.1",
+    "@types/pg": "^8.11.10",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

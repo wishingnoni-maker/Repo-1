@@ -6,90 +6,53 @@ import type {
   ImportSummary,
   PaginatedClients
 } from "../types.js";
+import type { ClientRepository } from "../repositories/ClientRepository.js";
+import { createClientRepository } from "../repositories/index.js";
 import { groupCounts } from "../utils/employee.js";
-import { resolveServerDataPath } from "../utils/paths.js";
 import {
   clientInputSchema,
-  createClientRecord,
   findMissingClientFields,
   mapRowToClientInput,
-  matchesClientFilters,
-  mergeClientRecord,
   normalizeClientInput
 } from "../utils/client.js";
-import { readJsonCollection, writeJsonCollection } from "./jsonStore.js";
 import { readRowsFromWorkbook } from "./importService.js";
 import { normalizeValue } from "../utils/text.js";
 
-const DATA_PATH = resolveServerDataPath("clients.json");
-const DATA_KEY = "clients";
-
 const clientKey = (value: string) => normalizeValue(value).toLowerCase();
 
-const sortClients = (clients: Client[]) =>
-  [...clients].sort((a, b) => a.clientName.localeCompare(b.clientName));
-
 export class ClientService {
+  constructor(private readonly repository: ClientRepository = createClientRepository()) {}
+
   async getAll(): Promise<Client[]> {
-    return readJsonCollection<Client>(DATA_PATH, DATA_KEY);
+    return this.repository.getAll();
   }
 
   async saveAll(clients: Client[]): Promise<void> {
-    await writeJsonCollection(DATA_PATH, DATA_KEY, clients);
+    await this.repository.saveAll(clients);
   }
 
   async query(filters: ClientFilters): Promise<PaginatedClients> {
-    const clients = await this.getAll();
-    const page = filters.page ?? 1;
-    const pageSize = filters.pageSize ?? 10;
-    const filtered = sortClients(clients.filter((client) => matchesClientFilters(client, filters)));
-    const start = (page - 1) * pageSize;
-    return {
-      data: filtered.slice(start, start + pageSize),
-      total: filtered.length,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(filtered.length / pageSize))
-    };
+    return this.repository.query(filters);
   }
 
   async getById(id: string): Promise<Client | null> {
-    const clients = await this.getAll();
-    return clients.find((client) => client.id === id) ?? null;
+    return this.repository.getById(id);
   }
 
   async getByName(name: string): Promise<Client | null> {
-    const clients = await this.getAll();
-    return clients.find((client) => clientKey(client.clientName) === clientKey(name)) ?? null;
+    return this.repository.getByName(name);
   }
 
   async create(input: ClientInput): Promise<Client> {
-    const clients = await this.getAll();
-    const created = createClientRecord(input);
-    clients.push(created);
-    await this.saveAll(clients);
-    return created;
+    return this.repository.create(input);
   }
 
   async update(id: string, input: Partial<ClientInput>): Promise<Client | null> {
-    const clients = await this.getAll();
-    const index = clients.findIndex((client) => client.id === id);
-    if (index === -1) {
-      return null;
-    }
-    clients[index] = mergeClientRecord(clients[index], input);
-    await this.saveAll(clients);
-    return clients[index];
+    return this.repository.update(id, input);
   }
 
   async delete(id: string): Promise<boolean> {
-    const clients = await this.getAll();
-    const next = clients.filter((client) => client.id !== id);
-    if (next.length === clients.length) {
-      return false;
-    }
-    await this.saveAll(next);
-    return true;
+    return this.repository.delete(id);
   }
 
   async importFromWorkbook(
@@ -144,7 +107,13 @@ export class ClientService {
       const key = clientKey(data.clientName);
       const current = nextByName.get(key);
       if (!current) {
-        const created = createClientRecord(data);
+        const timestamp = new Date().toISOString();
+        const created: Client = {
+          id: crypto.randomUUID(),
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
         nextClients.push(created);
         nextByName.set(key, created);
         importedRows += 1;
@@ -152,7 +121,11 @@ export class ClientService {
         return;
       }
 
-      const updated = mergeClientRecord(current, data);
+      const updated: Client = {
+        ...current,
+        ...normalizeClientInput(data),
+        updatedAt: new Date().toISOString()
+      };
       const index = nextClients.findIndex((client) => client.id === current.id);
       nextClients[index] = updated;
       nextByName.set(key, updated);
