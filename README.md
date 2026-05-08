@@ -71,7 +71,10 @@ npm run dev:client
 
 ## PostgreSQL Setup
 
-The backend now supports PostgreSQL when `DATABASE_URL` is set.
+The backend supports PostgreSQL when:
+
+- `DATA_PROVIDER=postgres`, or
+- `DATA_PROVIDER` is unset and `DATABASE_URL` is provided
 
 1. Start a local PostgreSQL instance.
    If Docker is available:
@@ -105,7 +108,7 @@ npm run db:verify
 npm run db:reset
 ```
 
-If `DATABASE_URL` is not set, the app continues to use JSON persistence from `server/data/*.json`.
+If `DATA_PROVIDER=json`, the app continues to use JSON persistence from `server/data/*.json` even if a `DATABASE_URL` value is present.
 
 ## Importing Excel / CSV
 
@@ -137,6 +140,7 @@ If `DATABASE_URL` is not set, the app continues to use JSON persistence from `se
 | `PORT` | Backend port |
 | `CLIENT_URL` | Allowed frontend origin(s) |
 | `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_SSL` | Set `true` for managed Postgres providers that require SSL |
 | `DATA_PROVIDER` | `json`, `postgres`, or legacy `sql` |
 | `JSON_DATA_PATH` | Local file path for JSON persistence |
 | `EMPLOYEE_SOURCE_CSV` | Employee seed source CSV path |
@@ -194,10 +198,13 @@ Run [server/database/schema.sql](/Users/govindkishan/Documents/Codex/2026-04-27/
 2. Set:
 
 ```env
-DATABASE_URL=postgresql://username:password@hostname:5432/workforce_hub
+DATA_PROVIDER=postgres
+DATABASE_URL=postgresql://username:password@hostname.postgres.database.azure.com:5432/workforce_hub?sslmode=require
 ```
 
-3. If your PostgreSQL server requires SSL, set either:
+3. Do not use `localhost` in Azure App Service. `localhost` inside Azure points to the app container itself, not your laptop or a managed database server.
+
+4. If your PostgreSQL server requires SSL, set either:
 
 ```env
 DATABASE_SSL=true
@@ -209,8 +216,80 @@ or:
 PGSSLMODE=require
 ```
 
-4. Run the schema and one-time seed against the production database.
-5. Deploy the backend. The existing frontend can keep using the same `VITE_API_BASE_URL`.
+5. Run the schema and one-time seed against the production database.
+6. Deploy the backend. The existing frontend can keep using the same `VITE_API_BASE_URL`.
+
+## Verify Azure App Service Is Using Neon PostgreSQL
+
+1. Confirm Azure App Service environment variables:
+
+```env
+DATA_PROVIDER=postgres
+DATABASE_URL=postgresql://<username>:<password>@<neon-host>/<database>?sslmode=require
+DATABASE_SSL=true
+NODE_ENV=production
+SCM_DO_BUILD_DURING_DEPLOYMENT=false
+```
+
+2. Restart the App Service.
+
+3. Test:
+
+[https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/health](https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/health)
+
+Expected:
+
+```json
+{"ok":true}
+```
+
+4. Test:
+
+[https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/system/status](https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/system/status)
+
+Expected:
+
+- `dataProvider=postgres`
+- `hasDatabaseUrl=true`
+- `databaseSsl=true`
+- `postgresConnected=true`
+- `counts.employees=39`
+- `counts.clients=187`
+- `counts.projects=708`
+
+5. Test:
+
+[https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/dashboard/summary](https://workforce-hub-api-h4d8caavcxhrhcdh.canadacentral-01.azurewebsites.net/api/dashboard/summary)
+
+Expected:
+
+- `totalEmployees=39`
+- `totalClients=187`
+- `totalProjects=708`
+
+6. Prove Neon is the source of truth:
+
+In the Neon SQL Editor, run:
+
+```sql
+UPDATE employees
+SET title = 'NEON VERIFICATION TEST'
+WHERE email = 'akelleher@trascent.com';
+```
+
+Then call:
+
+`GET /api/employees`
+
+Confirm the changed title appears.
+
+Then undo it:
+
+```sql
+UPDATE employees
+SET title = 'Engagement Manager'
+WHERE email = 'akelleher@trascent.com';
+```
 
 ## Azure Deployment Notes
 

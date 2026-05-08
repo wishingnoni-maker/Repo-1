@@ -5,7 +5,7 @@ import { normalizeSupervisorKey } from "../utils/employee.js";
 export const createOrgRouter = (repository: EmployeeRepository) => {
   const router = Router();
 
-  router.get("/supervisors", async (req, res) => {
+  const handler = async (req: import("express").Request, res: import("express").Response) => {
     const employees = await repository.getAll();
     const region = req.query.region as string | undefined;
     const country = req.query.country as string | undefined;
@@ -43,7 +43,10 @@ export const createOrgRouter = (repository: EmployeeRepository) => {
     ).sort((a, b) => b.teamSize - a.teamSize || a.supervisorName.localeCompare(b.supervisorName));
 
     res.json(groups);
-  });
+  };
+
+  router.get("/", handler);
+  router.get("/supervisors", handler);
 
   return router;
 };

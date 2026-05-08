@@ -13,6 +13,7 @@ import { createExportRouter } from "./routes/export.js";
 import { createImportRouter } from "./routes/import.js";
 import { createOrgRouter } from "./routes/org.js";
 import { createProjectRouter } from "./routes/projects.js";
+import { createSystemRouter } from "./routes/system.js";
 import { ClientService } from "./services/clientService.js";
 import { ProjectService } from "./services/projectService.js";
 
@@ -52,6 +53,7 @@ export const createApp = () => {
   app.use("/api/org", createOrgRouter(repository));
   app.use("/api/data-quality", createDataQualityRouter(repository, clientService, projectService));
   app.use("/api/export", createExportRouter(repository, clientService, projectService));
+  app.use("/api/system", createSystemRouter(repository, clientService, projectService));
 
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(error);

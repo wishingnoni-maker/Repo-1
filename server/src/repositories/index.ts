@@ -4,7 +4,7 @@ import sqlPkg from "mssql";
 import type { EmployeeRepository } from "./EmployeeRepository.js";
 import type { ClientRepository } from "./ClientRepository.js";
 import type { ProjectRepository } from "./ProjectRepository.js";
-import { hasDatabaseUrl, getDbPool } from "../db/pool.js";
+import { getDbPool, hasDatabaseUrl, isPostgresProviderEnabled } from "../db/pool.js";
 import { resolveServerDataPath } from "../utils/paths.js";
 import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
 import { JsonClientRepository } from "./JsonClientRepository.js";
@@ -51,7 +51,10 @@ const resolveEmployeeDataPath = () => {
 export const createEmployeeRepository = (): EmployeeRepository => {
   const provider = process.env.DATA_PROVIDER ?? "json";
 
-  if (hasDatabaseUrl() || provider === "postgres") {
+  if (isPostgresProviderEnabled()) {
+    if (!hasDatabaseUrl()) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL to be configured.");
+    }
     return new PostgresEmployeeRepository(getDbPool());
   }
 
@@ -73,9 +76,10 @@ export const createEmployeeRepository = (): EmployeeRepository => {
 };
 
 export const createClientRepository = (): ClientRepository => {
-  const provider = process.env.DATA_PROVIDER ?? "json";
-
-  if (hasDatabaseUrl() || provider === "postgres") {
+  if (isPostgresProviderEnabled()) {
+    if (!hasDatabaseUrl()) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL to be configured.");
+    }
     return new PostgresClientRepository(getDbPool());
   }
 
@@ -83,9 +87,10 @@ export const createClientRepository = (): ClientRepository => {
 };
 
 export const createProjectRepository = (): ProjectRepository => {
-  const provider = process.env.DATA_PROVIDER ?? "json";
-
-  if (hasDatabaseUrl() || provider === "postgres") {
+  if (isPostgresProviderEnabled()) {
+    if (!hasDatabaseUrl()) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL to be configured.");
+    }
     return new PostgresProjectRepository(getDbPool());
   }
 

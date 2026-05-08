@@ -1,9 +1,14 @@
 import { closeDbPool } from "../src/db/pool.js";
-import { PostgresEmployeeRepository } from "../src/repositories/postgresEmployeeRepository.js";
-import { PostgresClientRepository } from "../src/repositories/postgresClientRepository.js";
-import { PostgresProjectRepository } from "../src/repositories/postgresProjectRepository.js";
+import {
+  createClientRepository,
+  createEmployeeRepository,
+  createProjectRepository
+} from "../src/repositories/index.js";
 import { buildDashboardSummary } from "../src/services/dashboardService.js";
 import { getPoolOrThrow, loadScriptEnv } from "./databaseUtils.js";
+import { ClientService } from "../src/services/clientService.js";
+import { ProjectService } from "../src/services/projectService.js";
+import { getResolvedDataProvider, isPostgresProviderEnabled } from "../src/db/pool.js";
 
 loadScriptEnv();
 
@@ -17,15 +22,25 @@ const expected = {
 } as const;
 
 try {
-  const pool = getPoolOrThrow();
-  const employeeRepository = new PostgresEmployeeRepository(pool);
-  const clientRepository = new PostgresClientRepository(pool);
-  const projectRepository = new PostgresProjectRepository(pool);
+  const dataProvider = getResolvedDataProvider();
+  const employeeRepository = createEmployeeRepository();
+  const clientService = new ClientService(createClientRepository());
+  const projectService = new ProjectService(createProjectRepository());
+
+  console.log(`provider=${dataProvider}`);
+
+  if (isPostgresProviderEnabled()) {
+    const pool = getPoolOrThrow();
+    await pool.query("SELECT 1");
+    console.log("postgresConnected=true");
+  } else {
+    console.log("postgresConnected=false");
+  }
 
   const [employees, clients, projects] = await Promise.all([
     employeeRepository.getAll(),
-    clientRepository.getAll(),
-    projectRepository.getAll()
+    clientService.getAll(),
+    projectService.getAll()
   ]);
 
   if (employees.length !== expected.employees) {
