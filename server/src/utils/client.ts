@@ -32,6 +32,33 @@ export const normalizeClientInput = (input: Partial<ClientInput>): ClientInput =
   clientManager: normalizeValue(input.clientManager)
 });
 
+export const normalizePartialClientInput = (input: Partial<ClientInput>): Partial<ClientInput> => {
+  const normalized: Partial<ClientInput> = {};
+  const has = <K extends keyof ClientInput>(key: K) =>
+    Object.prototype.hasOwnProperty.call(input, key);
+
+  if (has("clientName")) {
+    normalized.clientName = normalizeValue(input.clientName);
+  }
+  if (has("clientStatus")) {
+    normalized.clientStatus = normalizeValue(input.clientStatus);
+  }
+  if (has("clientInvoiceCurrency")) {
+    normalized.clientInvoiceCurrency = normalizeValue(input.clientInvoiceCurrency);
+  }
+  if (has("clientContact")) {
+    normalized.clientContact = normalizeValue(input.clientContact);
+  }
+  if (has("clientDescription")) {
+    normalized.clientDescription = normalizeValue(input.clientDescription);
+  }
+  if (has("clientManager")) {
+    normalized.clientManager = normalizeValue(input.clientManager);
+  }
+
+  return normalized;
+};
+
 export const mapRowToClientInput = (row: Record<string, unknown>): ClientInput => {
   const mapped: Partial<ClientInput> = {};
 
@@ -60,7 +87,7 @@ export const createClientRecord = (input: ClientInput): Client => {
 
 export const mergeClientRecord = (existing: Client, input: Partial<ClientInput>): Client => ({
   ...existing,
-  ...normalizeClientInput(input),
+  ...normalizePartialClientInput(input),
   updatedAt: new Date().toISOString()
 });
 

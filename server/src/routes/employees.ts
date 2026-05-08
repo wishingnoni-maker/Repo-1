@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { EmployeeRepository } from "../repositories/EmployeeRepository.js";
-import { employeeInputSchema, normalizeEmployeeInput } from "../utils/employee.js";
+import {
+  employeeInputSchema,
+  normalizeEmployeeInput,
+  normalizePartialEmployeeInput
+} from "../utils/employee.js";
 
 export const createEmployeeRouter = (repository: EmployeeRepository) => {
   const router = Router();
@@ -72,7 +76,7 @@ export const createEmployeeRouter = (repository: EmployeeRepository) => {
   });
 
   router.put("/:id", async (req, res) => {
-    const normalized = normalizeEmployeeInput(req.body);
+    const normalized = normalizePartialEmployeeInput(req.body);
     const parsed = employeeInputSchema.partial().safeParse(normalized);
     if (!parsed.success) {
       return res.status(400).json({ message: parsed.error.issues });

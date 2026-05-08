@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { ProjectService } from "../services/projectService.js";
 import { ClientService } from "../services/clientService.js";
-import { clientInputSchema, normalizeClientInput } from "../utils/client.js";
+import { clientInputSchema, normalizeClientInput, normalizePartialClientInput } from "../utils/client.js";
 import { slugifyName } from "../utils/text.js";
 
 export const createClientRouter = (clientService: ClientService, projectService: ProjectService) => {
@@ -58,7 +58,7 @@ export const createClientRouter = (clientService: ClientService, projectService:
   });
 
   router.put("/:id", async (req, res) => {
-    const parsed = clientInputSchema.partial().safeParse(normalizeClientInput(req.body));
+    const parsed = clientInputSchema.partial().safeParse(normalizePartialClientInput(req.body));
     if (!parsed.success) {
       return res.status(400).json({ message: parsed.error.issues });
     }

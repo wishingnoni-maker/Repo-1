@@ -72,6 +72,68 @@ export const normalizeProjectInput = (
   numberOfWorkWeeks: parseNumericInput(input.numberOfWorkWeeks)
 });
 
+export const normalizePartialProjectInput = (
+  input: Partial<Record<keyof ProjectInput, unknown>>
+): Partial<ProjectInput> => {
+  const normalized: Partial<ProjectInput> = {};
+  const has = <K extends keyof ProjectInput>(key: K) =>
+    Object.prototype.hasOwnProperty.call(input, key);
+
+  if (has("projectName")) {
+    normalized.projectName = normalizeValue(input.projectName);
+  }
+  if (has("projectEstimatedHrs")) {
+    normalized.projectEstimatedHrs = parseNumericInput(input.projectEstimatedHrs);
+  }
+  if (has("projectStatus")) {
+    normalized.projectStatus = normalizeValue(input.projectStatus);
+  }
+  if (has("projectCurrency")) {
+    normalized.projectCurrency = normalizeValue(input.projectCurrency);
+  }
+  if (has("projectManager")) {
+    normalized.projectManager = normalizeValue(input.projectManager);
+  }
+  if (has("projectManagerEmail")) {
+    normalized.projectManagerEmail = normalizeValue(input.projectManagerEmail);
+  }
+  if (has("projectStartDate")) {
+    normalized.projectStartDate = parseDateInput(input.projectStartDate);
+  }
+  if (has("projectEndDate")) {
+    normalized.projectEndDate = parseDateInput(input.projectEndDate);
+  }
+  if (has("projectDescription")) {
+    normalized.projectDescription = normalizeValue(input.projectDescription);
+  }
+  if (has("budgetHours")) {
+    normalized.budgetHours = parseNumericInput(input.budgetHours);
+  }
+  if (has("budgetCost")) {
+    normalized.budgetCost = parseNumericInput(input.budgetCost);
+  }
+  if (has("expenseBudgetProjectCurrency")) {
+    normalized.expenseBudgetProjectCurrency = parseNumericInput(input.expenseBudgetProjectCurrency);
+  }
+  if (has("projectRegion")) {
+    normalized.projectRegion = normalizeValue(input.projectRegion);
+  }
+  if (has("poNumber")) {
+    normalized.poNumber = normalizeValue(input.poNumber);
+  }
+  if (has("projectSoldBy")) {
+    normalized.projectSoldBy = normalizeValue(input.projectSoldBy);
+  }
+  if (has("numberOfResources")) {
+    normalized.numberOfResources = parseNumericInput(input.numberOfResources);
+  }
+  if (has("numberOfWorkWeeks")) {
+    normalized.numberOfWorkWeeks = parseNumericInput(input.numberOfWorkWeeks);
+  }
+
+  return normalized;
+};
+
 export const mapRowToProjectInput = (row: Record<string, unknown>): ProjectInput => {
   const mapped: Partial<Record<keyof ProjectInput, unknown>> = {
     projectName: getField(row, ["Project Name"]),
@@ -115,7 +177,7 @@ export const createProjectRecord = (input: ProjectInput): Project => {
 
 export const mergeProjectRecord = (existing: Project, input: Partial<ProjectInput>): Project => ({
   ...existing,
-  ...normalizeProjectInput(input),
+  ...normalizePartialProjectInput(input),
   updatedAt: new Date().toISOString()
 });
 

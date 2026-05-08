@@ -90,6 +90,57 @@ export const normalizeEmployeeInput = (input: Partial<EmployeeInput>): EmployeeI
   };
 };
 
+export const normalizePartialEmployeeInput = (
+  input: Partial<EmployeeInput>
+): Partial<EmployeeInput> => {
+  const normalized: Partial<EmployeeInput> = {};
+  const has = <K extends keyof EmployeeInput>(key: K) =>
+    Object.prototype.hasOwnProperty.call(input, key);
+
+  if (has("fullName") || has("firstName") || has("lastName")) {
+    const fullName = has("fullName") ? normalizeValue(input.fullName) : "";
+    const firstName = has("firstName") ? normalizeValue(input.firstName) : "";
+    const lastName = has("lastName") ? normalizeValue(input.lastName) : "";
+
+    if (has("fullName")) {
+      normalized.fullName = fullName || [firstName, lastName].filter(Boolean).join(" ").trim();
+    }
+    if (has("firstName")) {
+      normalized.firstName = firstName;
+    }
+    if (has("lastName")) {
+      normalized.lastName = lastName;
+    }
+  }
+
+  if (has("email")) {
+    normalized.email = normalizeValue(input.email).toLowerCase();
+  }
+  if (has("title")) {
+    normalized.title = normalizeValue(input.title);
+  }
+  if (has("employeeRegion")) {
+    normalized.employeeRegion = normalizeValue(input.employeeRegion);
+  }
+  if (has("supervisorName")) {
+    normalized.supervisorName = normalizeSupervisorDisplayName(input.supervisorName);
+  }
+  if (has("employeeCell")) {
+    normalized.employeeCell = normalizeValue(input.employeeCell);
+  }
+  if (has("country")) {
+    normalized.country = normalizeValue(input.country);
+  }
+  if (has("titleCode")) {
+    normalized.titleCode = normalizeValue(input.titleCode);
+  }
+  if (has("hireDate")) {
+    normalized.hireDate = parseDateInput(input.hireDate);
+  }
+
+  return normalized;
+};
+
 export const mapExcelRowToEmployeeInput = (row: Record<string, unknown>): Partial<EmployeeInput> => {
   const mapped: Partial<EmployeeInput> = {};
 

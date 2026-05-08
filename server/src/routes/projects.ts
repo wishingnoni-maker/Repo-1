@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { projectInputSchema, normalizeProjectInput } from "../utils/project.js";
+import { projectInputSchema, normalizePartialProjectInput, normalizeProjectInput } from "../utils/project.js";
 import { ProjectService } from "../services/projectService.js";
 
 export const createProjectRouter = (projectService: ProjectService) => {
@@ -58,7 +58,7 @@ export const createProjectRouter = (projectService: ProjectService) => {
   });
 
   router.put("/:id", async (req, res) => {
-    const parsed = projectInputSchema.partial().safeParse(normalizeProjectInput(req.body));
+    const parsed = projectInputSchema.partial().safeParse(normalizePartialProjectInput(req.body));
     if (!parsed.success) {
       return res.status(400).json({ message: parsed.error.issues });
     }
