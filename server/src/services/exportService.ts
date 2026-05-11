@@ -1,5 +1,5 @@
 import { stringify } from "csv-stringify/sync";
-import type { Client, DataQualityIssue, Employee, Project } from "../types.js";
+import type { Client, DataQualityIssue, Employee, Project, TimeEntry } from "../types.js";
 
 export const employeesToCsv = (employees: Employee[]): string =>
   stringify(employees, { header: true });
@@ -33,3 +33,22 @@ export const issuesToCsv = (issues: DataQualityIssue[]): string =>
 export const supervisorTeamsToCsv = (
   rows: Array<{ supervisorName: string; teamSize: number; region: string; country: string }>
 ): string => stringify(rows, { header: true });
+
+export const timeEntriesToCsv = (entries: TimeEntry[]): string =>
+  stringify(
+    entries.map((entry) => ({
+      workDate: entry.workDate,
+      employeeName: entry.employeeName,
+      employeeEmail: entry.employeeEmail,
+      clientName: entry.clientName,
+      projectName: entry.projectName,
+      projectManager: entry.projectManager,
+      hours: entry.hours,
+      billable: entry.billable ? "true" : "false",
+      workCategory: entry.workCategory,
+      notes: entry.notes,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt
+    })),
+    { header: true }
+  );

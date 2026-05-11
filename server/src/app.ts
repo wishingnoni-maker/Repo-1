@@ -14,24 +14,37 @@ import { createImportRouter } from "./routes/import.js";
 import { createOrgRouter } from "./routes/org.js";
 import { createProjectRouter } from "./routes/projects.js";
 import { createSystemRouter } from "./routes/system.js";
+import { createTimeEntryRouter } from "./routes/timeEntries.js";
 import { ClientService } from "./services/clientService.js";
 import { ProjectService } from "./services/projectService.js";
+import { TimeEntryService } from "./services/timeEntryService.js";
 
 export const createApp = () => {
   const app = express();
   const repository = createEmployeeRepository();
   const clientService = new ClientService(createClientRepository());
   const projectService = new ProjectService(createProjectRepository());
+  const timeEntryService = new TimeEntryService();
   const allowedOrigins = [
-    "http://localhost:5173",
     "https://kind-plant-0b9c4f610.7.azurestaticapps.net",
     ...(process.env.CLIENT_URL?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? [])
   ];
+  const isAllowedLocalOrigin = (origin: string) => {
+    try {
+      const parsed = new URL(origin);
+      return (
+        parsed.protocol === "http:" &&
+        ["localhost", "127.0.0.1"].includes(parsed.hostname)
+      );
+    } catch {
+      return false;
+    }
+  };
 
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin) || isAllowedLocalOrigin(origin)) {
           callback(null, true);
           return;
         }
@@ -49,6 +62,7 @@ export const createApp = () => {
   app.use("/api/employees", createEmployeeRouter(repository));
   app.use("/api/clients", createClientRouter(clientService, projectService));
   app.use("/api/projects", createProjectRouter(projectService));
+  app.use("/api/time-entries", createTimeEntryRouter(timeEntryService));
   app.use("/api/dashboard", createDashboardRouter(repository, clientService, projectService));
   app.use("/api/org", createOrgRouter(repository));
   app.use("/api/data-quality", createDataQualityRouter(repository, clientService, projectService));

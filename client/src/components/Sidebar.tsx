@@ -6,6 +6,7 @@ const items = [
   { to: "/import", label: "Import Excel" },
   { to: "/clients", label: "Clients" },
   { to: "/projects", label: "Projects" },
+  { to: "/time-tracking", label: "Time Tracking" },
   { to: "/org", label: "Org View" },
   { to: "/data-quality", label: "Data Quality" },
   { to: "/reports", label: "Reports / Export" },

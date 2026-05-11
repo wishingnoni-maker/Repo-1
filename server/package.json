@@ -12,7 +12,10 @@
     "db:seed": "node --import tsx ./scripts/seedDatabase.ts",
     "db:reset": "node --import tsx ./scripts/resetDatabase.ts",
     "db:verify": "node --import tsx ./scripts/verifyDatabase.ts",
-    "db:check": "node --import tsx ./scripts/verifyDatabase.ts"
+    "db:check": "node --import tsx ./scripts/verifyDatabase.ts",
+    "db:seed:timesheet-demo": "node --import tsx ./scripts/seedTimesheetDemoProjects.ts",
+    "db:seed:timesheet-demo-projects": "node --import tsx ./scripts/seedTimesheetDemoProjects.ts",
+    "db:seed:time-entries-demo": "node --import tsx ./scripts/seedTimeEntriesDemo.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",

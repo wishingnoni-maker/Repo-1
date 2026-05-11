@@ -11,6 +11,7 @@ import { OrgViewPage } from "./pages/OrgViewPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { TimeTrackingPage } from "./pages/TimeTrackingPage";
 
 export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
@@ -41,6 +42,10 @@ export default function App() {
             <Route
               element={<ProjectsPage refreshToken={refreshToken} onDataChange={handleDataChange} />}
               path="/projects"
+            />
+            <Route
+              element={<TimeTrackingPage refreshToken={refreshToken} onDataChange={handleDataChange} />}
+              path="/time-tracking"
             />
             <Route element={<OrgViewPage />} path="/org" />
             <Route element={<DataQualityPage />} path="/data-quality" />

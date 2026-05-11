@@ -252,3 +252,106 @@ export interface ProjectSummary {
   averageNumberOfResources: number;
   averageNumberOfWorkWeeks: number;
 }
+
+export interface TimeEntry {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string;
+  clientId: string | null;
+  clientName: string;
+  projectId: string;
+  projectName: string;
+  projectStatus: string;
+  projectManager: string;
+  workDate: string;
+  hours: number;
+  workCategory: string;
+  billable: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TimeEntryInput {
+  employeeId: string;
+  projectId: string;
+  clientId: string | null;
+  workDate: string;
+  hours: number;
+  workCategory: string;
+  billable: boolean;
+  notes: string;
+}
+
+export interface TimeEntryFilters {
+  employeeId?: string;
+  clientId?: string;
+  projectId?: string;
+  startDate?: string;
+  endDate?: string;
+  billable?: boolean;
+  workCategory?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: "workDate" | "hours" | "employeeName" | "projectName" | "createdAt";
+  sortDirection?: "asc" | "desc";
+}
+
+export interface PaginatedTimeEntries {
+  data: TimeEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface TimeEntryEmployeeOption {
+  id: string;
+  fullName: string;
+  email: string;
+  title: string;
+  employeeRegion: string;
+  supervisorName: string;
+}
+
+export interface TimeEntryProjectOption {
+  id: string;
+  projectName: string;
+  clientId: string | null;
+  clientName: string;
+  projectStatus: string;
+  projectManager: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
+  projectRegion: string;
+  budgetHours: number | null;
+  budgetCost: number | null;
+  label: string;
+}
+
+export interface TimeEntryUtilizationHint {
+  projectId: string;
+  projectName: string;
+  budgetHours: number | null;
+  actualHours: number;
+  remainingHours: number | null;
+  percentUsed: number | null;
+  status: "healthy" | "watch" | "at-risk" | "unbudgeted";
+}
+
+export interface TimeEntrySummary {
+  totalHours: number;
+  billableHours: number;
+  nonBillableHours: number;
+  entryCount: number;
+  uniqueEmployees: number;
+  uniqueProjects: number;
+  hoursByProject: Array<{ label: string; value: number; projectId?: string | null }>;
+  hoursByEmployee: Array<{ label: string; value: number; employeeId?: string | null }>;
+  hoursByClient: Array<{ label: string; value: number; clientId?: string | null }>;
+  hoursByWeek: Array<{ label: string; value: number }>;
+  billableByWeek: Array<{ label: string; billableHours: number; nonBillableHours: number }>;
+  utilizationHints: TimeEntryUtilizationHint[];
+}

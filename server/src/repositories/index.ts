@@ -4,15 +4,18 @@ import sqlPkg from "mssql";
 import type { EmployeeRepository } from "./EmployeeRepository.js";
 import type { ClientRepository } from "./ClientRepository.js";
 import type { ProjectRepository } from "./ProjectRepository.js";
+import type { TimeEntryRepository } from "./TimeEntryRepository.js";
 import { getDbPool, hasDatabaseUrl, isPostgresProviderEnabled } from "../db/pool.js";
 import { resolveServerDataPath } from "../utils/paths.js";
 import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
 import { JsonClientRepository } from "./JsonClientRepository.js";
 import { JsonProjectRepository } from "./JsonProjectRepository.js";
+import { JsonTimeEntryRepository } from "./JsonTimeEntryRepository.js";
 import { SqlEmployeeRepository } from "./SqlEmployeeRepository.js";
 import { PostgresEmployeeRepository } from "./postgresEmployeeRepository.js";
 import { PostgresClientRepository } from "./postgresClientRepository.js";
 import { PostgresProjectRepository } from "./postgresProjectRepository.js";
+import { PostgresTimeEntryRepository } from "./postgresTimeEntryRepository.js";
 
 const sql = sqlPkg as any;
 
@@ -95,4 +98,15 @@ export const createProjectRepository = (): ProjectRepository => {
   }
 
   return new JsonProjectRepository(resolveServerDataPath("projects.json"));
+};
+
+export const createTimeEntryRepository = (): TimeEntryRepository => {
+  if (isPostgresProviderEnabled()) {
+    if (!hasDatabaseUrl()) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL to be configured.");
+    }
+    return new PostgresTimeEntryRepository(getDbPool());
+  }
+
+  return new JsonTimeEntryRepository(resolveServerDataPath("time-entries.json"));
 };

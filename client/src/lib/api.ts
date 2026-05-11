@@ -14,7 +14,14 @@ import type {
   Project,
   ProjectDetailResponse,
   ProjectFilters,
-  ProjectListResponse
+  ProjectListResponse,
+  TimeEntry,
+  TimeEntryDetailResponse,
+  TimeEntryEmployeeOption,
+  TimeEntryFilters,
+  TimeEntryListResponse,
+  TimeEntryProjectOption,
+  TimeEntrySummary
 } from "../types";
 
 const API_BASE =
@@ -134,6 +141,28 @@ export const api = {
   importProjects: (file: File, replaceExisting: boolean) =>
     uploadImport("/import/projects", file, replaceExisting),
   getProjectQuality: () => request<import("../types").DataQualityIssue[]>(`/projects/quality/issues`),
+
+  getTimeEntries: (filters: TimeEntryFilters) =>
+    request<TimeEntryListResponse>(`/time-entries?${buildQuery(filters)}`),
+  getTimeEntry: (id: string) => request<TimeEntryDetailResponse>(`/time-entries/${id}`),
+  createTimeEntry: (payload: Partial<TimeEntry>) =>
+    request<TimeEntry>("/time-entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  updateTimeEntry: (id: string, payload: Partial<TimeEntry>) =>
+    request<TimeEntry>(`/time-entries/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  deleteTimeEntry: (id: string) =>
+    request<void>(`/time-entries/${id}`, { method: "DELETE" }),
+  getTimeEntrySummary: (filters: Partial<TimeEntryFilters> = {}) =>
+    request<TimeEntrySummary>(`/time-entries/summary?${buildQuery(filters)}`),
+  getTimeEntryProjectOptions: () => request<TimeEntryProjectOption[]>("/time-entries/project-options"),
+  getTimeEntryEmployeeOptions: () => request<TimeEntryEmployeeOption[]>("/time-entries/employee-options"),
 
   getDashboard: () => request<DashboardSummary>("/dashboard/summary"),
   getDataQuality: () => request<DataQualitySummary>("/data-quality"),

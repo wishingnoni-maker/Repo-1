@@ -335,3 +335,73 @@ If you want one Azure App Service deployment, you can build the client separatel
 - PostgreSQL mode is designed to preserve the existing API contract and frontend behavior.
 - The local JSON repository is still available as a fallback/reference path while the DB rollout is being verified.
 - The seed/verify scripts expect the provided employee, client, and project CSV files unless you override the paths with env vars.
+
+## Time Tracking Module
+
+The app includes a new `Time Tracking` module at `/time-tracking`.
+
+### What it uses
+
+- Employees come from the existing `employees` table.
+- Clients come from the existing `clients` table.
+- Projects come from the existing `projects` table.
+- Time entries are stored in the new `time_entries` table.
+
+### Key API routes
+
+- `GET /api/time-entries`
+- `POST /api/time-entries`
+- `GET /api/time-entries/:id`
+- `PUT /api/time-entries/:id`
+- `DELETE /api/time-entries/:id`
+- `GET /api/time-entries/summary`
+- `GET /api/time-entries/project-options`
+- `GET /api/time-entries/employee-options`
+- `GET /api/time-entries/export`
+
+### Demo and setup scripts
+
+Apply the schema:
+
+```bash
+npm run db:schema --workspace server
+```
+
+Mark a small recent set of projects as eligible for timesheet demos:
+
+```bash
+npm run db:seed:timesheet-demo-projects --workspace server
+```
+
+There is also an alias:
+
+```bash
+npm run db:seed:timesheet-demo --workspace server
+```
+
+Seed sample time entries for the current week/month:
+
+```bash
+npm run db:seed:time-entries-demo --workspace server
+```
+
+### Local verification
+
+With PostgreSQL mode enabled:
+
+```bash
+DATA_PROVIDER=postgres npm start --workspace server
+```
+
+Then test:
+
+- `GET /api/time-entries/project-options`
+- `GET /api/time-entries/employee-options`
+- `GET /api/time-entries`
+- `GET /api/time-entries/summary`
+
+### Important behavior
+
+- The project picker only shows projects that are recent or active-ish for the last 5 years.
+- Demo scripts never run automatically on startup.
+- Partial `PUT` updates are safe and only modify fields that are actually sent.

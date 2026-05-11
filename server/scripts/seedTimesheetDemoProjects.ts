@@ -1,0 +1,37 @@
+import { closeDbPool } from "../src/db/pool.js";
+import { createProjectRepository } from "../src/repositories/index.js";
+import { loadScriptEnv } from "./databaseUtils.js";
+
+loadScriptEnv();
+
+const activeStatuses = new Set(["active", "in progress", "open", "current", "ongoing", "started"]);
+
+try {
+  const repository = createProjectRepository();
+  const projects = await repository.getAll();
+  const ranked = [...projects]
+    .sort((a, b) => {
+      const aDate = new Date(a.projectEndDate ?? a.projectStartDate ?? 0).getTime();
+      const bDate = new Date(b.projectEndDate ?? b.projectStartDate ?? 0).getTime();
+      return bDate - aDate;
+    })
+    .slice(0, 10);
+
+  const endDate = new Date();
+  endDate.setUTCDate(endDate.getUTCDate() + 90);
+  const endDateLabel = endDate.toISOString().slice(0, 10);
+
+  for (const project of ranked) {
+    await repository.update(project.id, {
+      projectStatus: activeStatuses.has(project.projectStatus.toLowerCase()) ? project.projectStatus : "Active",
+      projectEndDate: endDateLabel
+    });
+  }
+
+  console.log("Updated demo timesheet projects:");
+  ranked.forEach((project) => {
+    console.log(`- ${project.projectName}`);
+  });
+} finally {
+  await closeDbPool();
+}

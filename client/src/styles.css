@@ -103,7 +103,9 @@ select {
 .admin-key input,
 .filters input,
 .filters select,
-.form-grid input {
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px 14px;
@@ -208,6 +210,33 @@ select {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.form-grid__full {
+  grid-column: 1 / -1;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.time-entry-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.time-entry-form input,
+.time-entry-form select,
+.time-entry-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.time-entry-form .toggle {
+  min-height: 52px;
+  align-items: center;
+  padding-top: 28px;
 }
 
 .table-wrap {
@@ -317,6 +346,32 @@ th {
 .summary-grid {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   margin-bottom: 18px;
+}
+
+.project-context {
+  padding: 18px;
+  border-radius: 18px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.project-context h4 {
+  margin: 0 0 14px;
+}
+
+.helper-text {
+  color: #52627a;
+  font-size: 0.92rem;
+}
+
+.helper-banner {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #ecfeff;
+  border: 1px solid rgba(8, 145, 178, 0.16);
+  color: #155e75;
 }
 
 .summary-grid div {
@@ -592,6 +647,10 @@ th {
   }
 
   .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .time-entry-form {
     grid-template-columns: 1fr;
   }
 }
