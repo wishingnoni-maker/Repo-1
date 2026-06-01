@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatDate } from "../lib/format";
 import { formatMoney, isMissing, safeString } from "../lib/safe";
-import type { Client, TimeEntry, TimeEntryEmployeeOption, TimeEntryProjectOption } from "../types";
+import type { Client, ProjectAssignment, TimeEntry, TimeEntryEmployeeOption, TimeEntryProjectOption } from "../types";
 
 const categories = [
   "Client Work",
@@ -15,6 +15,11 @@ const categories = [
 ] as const;
 
 const todayLabel = () => new Date().toISOString().slice(0, 10);
+const shiftedDateLabel = (days: number) => {
+  const value = new Date();
+  value.setDate(value.getDate() + days);
+  return value.toISOString().slice(0, 10);
+};
 
 type TimeEntryFormState = {
   employeeId: string;
@@ -47,6 +52,7 @@ interface TimeEntryFormProps {
   loadingProjects?: boolean;
   loadingClients?: boolean;
   trackedHoursByProject?: Record<string, number>;
+  projectAssignmentsByProject?: Record<string, ProjectAssignment[]>;
   onSubmit: (value: {
     employeeId: string;
     projectId: string;
@@ -69,6 +75,7 @@ export function TimeEntryForm({
   loadingProjects = false,
   loadingClients = false,
   trackedHoursByProject = {},
+  projectAssignmentsByProject = {},
   onSubmit,
   submitLabel
 }: TimeEntryFormProps) {
@@ -85,16 +92,27 @@ export function TimeEntryForm({
     setError("");
   }, [initialValue]);
 
-  const visibleEmployees = useMemo(
-    () =>
-      employees.filter((employee) =>
-        [employee.fullName, employee.email, employee.title, employee.employeeRegion]
-          .join(" ")
-          .toLowerCase()
-          .includes(employeeSearch.toLowerCase())
-      ),
-    [employeeSearch, employees]
+  const selectedProject = projects.find((project) => project.id === formState.projectId) ?? null;
+  const assignedEmployees = selectedProject ? projectAssignmentsByProject[selectedProject.id] ?? [] : [];
+  const activeAssignedEmployees = assignedEmployees.filter((assignment) => assignment.active);
+  const assignedEmployeeIds = useMemo(
+    () => new Set(assignedEmployees.filter((assignment) => assignment.active).map((assignment) => assignment.employeeId)),
+    [assignedEmployees]
   );
+  const visibleEmployees = useMemo(() => {
+    const filtered = employees.filter((employee) =>
+      [employee.fullName, employee.email, employee.title, employee.employeeRegion]
+        .join(" ")
+        .toLowerCase()
+        .includes(employeeSearch.toLowerCase())
+    );
+
+    return [...filtered].sort((a, b) => {
+      const aAssigned = assignedEmployeeIds.has(a.id) ? 0 : 1;
+      const bAssigned = assignedEmployeeIds.has(b.id) ? 0 : 1;
+      return aAssigned - bAssigned || a.fullName.localeCompare(b.fullName);
+    });
+  }, [assignedEmployeeIds, employeeSearch, employees]);
 
   const visibleProjects = useMemo(
     () =>
@@ -102,14 +120,21 @@ export function TimeEntryForm({
     [projectSearch, projects]
   );
 
-  const selectedProject = projects.find((project) => project.id === formState.projectId) ?? null;
   const trackedHoursForProject = selectedProject ? trackedHoursByProject[selectedProject.id] ?? 0 : 0;
   const remainingHours =
-    selectedProject?.budgetHours == null ? null : Number((selectedProject.budgetHours - trackedHoursForProject).toFixed(2));
+    selectedProject?.remainingLoeHours != null
+      ? selectedProject.remainingLoeHours
+      : selectedProject?.budgetHours == null
+        ? null
+        : Number((selectedProject.budgetHours - trackedHoursForProject).toFixed(2));
   const percentUsed =
-    selectedProject?.budgetHours && selectedProject.budgetHours > 0
-      ? Number(((trackedHoursForProject / selectedProject.budgetHours) * 100).toFixed(1))
-      : null;
+    selectedProject?.loeUsedPercent != null
+      ? selectedProject.loeUsedPercent
+      : selectedProject?.budgetHours && selectedProject.budgetHours > 0
+        ? Number(((trackedHoursForProject / selectedProject.budgetHours) * 100).toFixed(1))
+        : null;
+  const selectedEmployeeAssigned =
+    !selectedProject || !formState.employeeId || assignedEmployeeIds.size === 0 || assignedEmployeeIds.has(formState.employeeId);
 
   return (
     <form
@@ -183,6 +208,7 @@ export function TimeEntryForm({
           {visibleEmployees.map((employee) => (
             <option key={employee.id} value={employee.id}>
               {employee.fullName} — {employee.title || "No title"} — {employee.employeeRegion || "No region"}
+              {assignedEmployeeIds.has(employee.id) ? " — Assigned" : ""}
             </option>
           ))}
         </select>
@@ -243,6 +269,18 @@ export function TimeEntryForm({
           onChange={(event) => setFormState((current) => ({ ...current, workDate: event.target.value }))}
         />
       </label>
+
+      <div className="form-grid__full quick-action-row">
+        <span className="helper-text">Quick dates</span>
+        <div className="row-actions">
+          <button className="button button--ghost" onClick={() => setFormState((current) => ({ ...current, workDate: todayLabel() }))} type="button">
+            Today
+          </button>
+          <button className="button button--ghost" onClick={() => setFormState((current) => ({ ...current, workDate: shiftedDateLabel(-1) }))} type="button">
+            Yesterday
+          </button>
+        </div>
+      </div>
 
       <label>
         <span>Hours</span>
@@ -309,12 +347,12 @@ export function TimeEntryForm({
             </div>
             <div>
               <span>Budget hours</span>
-              <strong>{selectedProject.budgetHours ?? "No budget hours available"}</strong>
+              <strong>{selectedProject.plannedLoeHours ?? selectedProject.budgetHours ?? "No planned LOE available"}</strong>
             </div>
             <div>
-              <span>Budget cost</span>
+              <span>Sold amount</span>
               <strong>
-                {selectedProject.budgetCost == null ? "No budget cost available" : formatMoney(selectedProject.budgetCost)}
+                {selectedProject.soldAmount == null ? "No sold amount available" : formatMoney(selectedProject.soldAmount)}
               </strong>
             </div>
             <div>
@@ -331,7 +369,54 @@ export function TimeEntryForm({
               <span>Percent used</span>
               <strong>{percentUsed == null ? "No budget hours available" : `${percentUsed.toFixed(1)}%`}</strong>
             </div>
+            <div>
+              <span>Actual cost</span>
+              <strong>{selectedProject.actualCost == null ? "Missing cost data" : formatMoney(selectedProject.actualCost)}</strong>
+            </div>
+            <div>
+              <span>Margin</span>
+              <strong>{selectedProject.marginPercent == null ? "Missing financial data" : `${selectedProject.marginPercent.toFixed(1)}%`}</strong>
+            </div>
+            <div>
+              <span>Assigned employees</span>
+              <strong>{selectedProject.assignedEmployeeCount ?? assignedEmployees.filter((assignment) => assignment.active).length}</strong>
+            </div>
+            <div>
+              <span>Profitability</span>
+              <strong>{selectedProject.profitabilityStatus ?? "Unknown"}</strong>
+            </div>
           </div>
+          {activeAssignedEmployees.length ? (
+            <div className="assignment-quick-pick">
+              <div className="assignment-quick-pick__header">
+                <h5>Assigned team</h5>
+                <span>Pick the staffed team member directly from the project roster.</span>
+              </div>
+              <div className="assignment-chip-grid">
+                {activeAssignedEmployees.map((assignment) => (
+                  <button
+                    key={assignment.id}
+                    className={`assignment-chip${formState.employeeId === assignment.employeeId ? " assignment-chip--active" : ""}`}
+                    onClick={() => setFormState((current) => ({ ...current, employeeId: assignment.employeeId }))}
+                    type="button"
+                  >
+                    <strong>{assignment.employeeName}</strong>
+                    <span>
+                      {assignment.roleOnProject || "Unspecified role"}
+                      {assignment.allocationPercent != null ? ` • ${assignment.allocationPercent.toFixed(0)}% allocation` : ""}
+                      {assignment.plannedHours != null ? ` • ${assignment.plannedHours.toFixed(0)}h planned` : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {selectedProject && !selectedEmployeeAssigned ? (
+        <div className="helper-text form-grid__full">
+          This employee is not currently assigned to the selected project. You can still save time, but you may want to add a project assignment first.
         </div>
       ) : null}
 

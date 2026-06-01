@@ -20,11 +20,19 @@ try {
   const endDate = new Date();
   endDate.setUTCDate(endDate.getUTCDate() + 90);
   const endDateLabel = endDate.toISOString().slice(0, 10);
+  const startDate = new Date();
+  startDate.setUTCDate(startDate.getUTCDate() - 30);
+  const startDateLabel = startDate.toISOString().slice(0, 10);
 
   for (const project of ranked) {
     await repository.update(project.id, {
       projectStatus: activeStatuses.has(project.projectStatus.toLowerCase()) ? project.projectStatus : "Active",
-      projectEndDate: endDateLabel
+      projectStartDate: project.projectStartDate ?? startDateLabel,
+      projectEndDate: endDateLabel,
+      plannedLoeHours: project.plannedLoeHours ?? project.budgetHours ?? project.projectEstimatedHrs ?? 400,
+      soldAmount: project.soldAmount ?? project.budgetCost ?? 120000,
+      blendedBillRate: project.blendedBillRate ?? 250,
+      blendedCostRate: project.blendedCostRate ?? 125
     });
   }
 

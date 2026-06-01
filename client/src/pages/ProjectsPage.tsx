@@ -80,6 +80,19 @@ const normalizeProject = (row: Record<string, unknown>, index: number): Project 
   numberOfWorkWeeks: isMissing(getField(row, ["Number of Work Weeks", "numberOfWorkWeeks"]))
     ? null
     : cleanNumber(getField(row, ["Number of Work Weeks", "numberOfWorkWeeks"])),
+  plannedLoeHours: isMissing(getField(row, ["Planned LOE Hours", "plannedLoeHours", "Budget Hours", "budgetHours"]))
+    ? null
+    : cleanNumber(getField(row, ["Planned LOE Hours", "plannedLoeHours", "Budget Hours", "budgetHours"])),
+  soldAmount: isMissing(getField(row, ["Sold Amount", "soldAmount", "Budget Cost", "budgetCost"]))
+    ? null
+    : cleanNumber(getField(row, ["Sold Amount", "soldAmount", "Budget Cost", "budgetCost"])),
+  blendedBillRate: isMissing(getField(row, ["Blended Bill Rate", "blendedBillRate"]))
+    ? null
+    : cleanNumber(getField(row, ["Blended Bill Rate", "blendedBillRate"])),
+  blendedCostRate: isMissing(getField(row, ["Blended Cost Rate", "blendedCostRate"]))
+    ? null
+    : cleanNumber(getField(row, ["Blended Cost Rate", "blendedCostRate"])),
+  profitabilityNotes: safeString(getField(row, ["Profitability Notes", "profitabilityNotes"])),
   createdAt: safeString(row.createdAt),
   updatedAt: safeString(row.updatedAt)
 });

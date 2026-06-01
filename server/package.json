@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run build && node dist/index.js",
+    "dev": "node ../scripts/start-server.mjs",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "tsc --noEmit -p tsconfig.json",
@@ -13,8 +13,9 @@
     "db:reset": "node --import tsx ./scripts/resetDatabase.ts",
     "db:verify": "node --import tsx ./scripts/verifyDatabase.ts",
     "db:check": "node --import tsx ./scripts/verifyDatabase.ts",
-    "db:seed:timesheet-demo": "node --import tsx ./scripts/seedTimesheetDemoProjects.ts",
+    "db:seed:timesheet-demo": "node --import tsx ./scripts/seedTimeEntriesDemo.ts",
     "db:seed:timesheet-demo-projects": "node --import tsx ./scripts/seedTimesheetDemoProjects.ts",
+    "db:seed:project-assignments-demo": "node --import tsx ./scripts/seedProjectAssignmentsDemo.ts",
     "db:seed:time-entries-demo": "node --import tsx ./scripts/seedTimeEntriesDemo.ts"
   },
   "dependencies": {

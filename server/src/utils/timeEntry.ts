@@ -19,6 +19,8 @@ export const timeEntryCategories = [
   "Other"
 ] as const;
 
+export const timeEntryApprovalStatuses = ["draft", "submitted", "approved", "rejected"] as const;
+
 const parseHours = (value: unknown): number => {
   const normalized = normalizeValue(value);
   if (!normalized) {
@@ -44,6 +46,27 @@ const parseBillable = (value: unknown): boolean => {
   return normalized !== "false" && normalized !== "0" && normalized !== "no";
 };
 
+const parseApprovalStatus = (value: unknown): TimeEntryInput["approvalStatus"] => {
+  const normalized = normalizeValue(value).toLowerCase();
+  if (!normalized) {
+    return "submitted";
+  }
+  return timeEntryApprovalStatuses.includes(normalized as TimeEntryInput["approvalStatus"])
+    ? (normalized as TimeEntryInput["approvalStatus"])
+    : "submitted";
+};
+
+const parseBoolean = (value: unknown, defaultValue: boolean) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = normalizeValue(value).toLowerCase();
+  if (!normalized) {
+    return defaultValue;
+  }
+  return normalized !== "false" && normalized !== "0" && normalized !== "no";
+};
+
 const parseWorkDate = (value: unknown): string => {
   const normalized = normalizeValue(value);
   if (!normalized) {
@@ -61,10 +84,16 @@ export const timeEntryInputSchema = z.object({
   projectId: z.string().uuid("Project is required"),
   clientId: z.string().uuid().nullable().default(null),
   workDate: z.string().min(1, "Work date is required"),
+  timesheetWeekStart: z.string().nullable().default(null),
+  rowGroupId: z.string().uuid().nullable().default(null),
   hours: z.number().gt(0, "Hours must be greater than 0").max(24, "Hours must be 24 or less"),
   workCategory: z.string().min(1).default("Client Work"),
   billable: z.boolean().default(true),
-  notes: z.string().max(1000, "Notes must be 1000 characters or fewer").default("")
+  approvalStatus: z.enum(timeEntryApprovalStatuses).default("submitted"),
+  locked: z.boolean().default(false),
+  source: z.string().min(1).default("manual"),
+  notes: z.string().max(1000, "Notes must be 1000 characters or fewer").default(""),
+  holidayReason: z.string().max(1000, "Holiday reason must be 1000 characters or fewer").default("")
 });
 
 export const normalizeTimeEntryInput = (input: Partial<Record<keyof TimeEntryInput, unknown>>): TimeEntryInput => ({
@@ -72,10 +101,16 @@ export const normalizeTimeEntryInput = (input: Partial<Record<keyof TimeEntryInp
   projectId: normalizeValue(input.projectId),
   clientId: parseNullableString(input.clientId),
   workDate: parseWorkDate(input.workDate),
+  timesheetWeekStart: parseNullableString(input.timesheetWeekStart),
+  rowGroupId: parseNullableString(input.rowGroupId),
   hours: parseHours(input.hours),
   workCategory: normalizeValue(input.workCategory) || "Client Work",
   billable: parseBillable(input.billable),
-  notes: normalizeValue(input.notes)
+  approvalStatus: parseApprovalStatus(input.approvalStatus),
+  locked: parseBoolean(input.locked, false),
+  source: normalizeValue(input.source) || "manual",
+  notes: normalizeValue(input.notes),
+  holidayReason: normalizeValue(input.holidayReason)
 });
 
 export const normalizePartialTimeEntryInput = (
@@ -97,6 +132,12 @@ export const normalizePartialTimeEntryInput = (
   if (has("workDate")) {
     normalized.workDate = parseWorkDate(input.workDate);
   }
+  if (has("timesheetWeekStart")) {
+    normalized.timesheetWeekStart = parseNullableString(input.timesheetWeekStart);
+  }
+  if (has("rowGroupId")) {
+    normalized.rowGroupId = parseNullableString(input.rowGroupId);
+  }
   if (has("hours")) {
     normalized.hours = parseHours(input.hours);
   }
@@ -106,8 +147,20 @@ export const normalizePartialTimeEntryInput = (
   if (has("billable")) {
     normalized.billable = parseBillable(input.billable);
   }
+  if (has("approvalStatus")) {
+    normalized.approvalStatus = parseApprovalStatus(input.approvalStatus);
+  }
+  if (has("locked")) {
+    normalized.locked = parseBoolean(input.locked, false);
+  }
+  if (has("source")) {
+    normalized.source = normalizeValue(input.source) || "manual";
+  }
   if (has("notes")) {
     normalized.notes = normalizeValue(input.notes);
+  }
+  if (has("holidayReason")) {
+    normalized.holidayReason = normalizeValue(input.holidayReason);
   }
 
   return normalized;
@@ -145,6 +198,9 @@ export const matchesTimeEntryFilters = (entry: TimeEntry, filters: TimeEntryFilt
     return false;
   }
   if (filters.workCategory && entry.workCategory !== filters.workCategory) {
+    return false;
+  }
+  if (filters.approvalStatus && entry.approvalStatus !== filters.approvalStatus) {
     return false;
   }
   if (filters.startDate && entry.workDate < filters.startDate) {

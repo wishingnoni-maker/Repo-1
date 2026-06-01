@@ -1,29 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from "recharts";
-import { ChartCard } from "../components/ChartCard";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Modal } from "../components/Modal";
 import { StatCard } from "../components/StatCard";
 import { TimeEntryDrawer } from "../components/TimeEntryDrawer";
-import { TimeEntryForm } from "../components/TimeEntryForm";
+import { WeeklyTimesheetGrid } from "../components/WeeklyTimesheetGrid";
 import { api } from "../lib/api";
 import { formatDate } from "../lib/format";
-import { formatMoney, isMissing, safeLower, safeString } from "../lib/safe";
-import type { Client, TimeEntry, TimeEntryEmployeeOption, TimeEntryProjectOption, TimeEntryFilters } from "../types";
+import type {
+  TimeEntry,
+  TimeEntryProjectOption,
+  TimesheetClientOption,
+  TimesheetDayKey,
+  TimesheetEmployeeOption,
+  WeeklyTimesheet,
+  WeeklyTimesheetRow,
+  WeeklyTimesheetTotals
+} from "../types";
 
-const tabs = ["Submit Time", "Entries", "Team Summary", "Reports"] as const;
-type TimeTrackingTab = (typeof tabs)[number];
+const tabs = ["Weekly Timesheet", "Submitted Entries", "Team Review", "Export"] as const;
+type TimesheetTab = (typeof tabs)[number];
 
 const categories = [
   "Client Work",
@@ -33,59 +28,28 @@ const categories = [
   "Admin",
   "Support",
   "Travel",
+  "Training",
+  "PTO / Holiday",
   "Other"
 ] as const;
 
-const today = () => new Date().toISOString().slice(0, 10);
-const startOfMonth = () => {
-  const value = new Date();
-  value.setUTCDate(1);
-  return value.toISOString().slice(0, 10);
-};
-const startOfWeek = () => {
-  const value = new Date();
-  const day = value.getUTCDay();
-  const offset = day === 0 ? 6 : day - 1;
-  value.setUTCDate(value.getUTCDate() - offset);
-  return value.toISOString().slice(0, 10);
-};
+const nonBillableDefaultCategories = new Set(["PTO / Holiday", "Admin", "Internal Meeting", "Training"]);
+const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const satisfies TimesheetDayKey[];
 
-type TimeTrackingFilters = Omit<TimeEntryFilters, "billable"> & {
-  billable: "all" | "true" | "false";
-};
+const emptyHours = (): Record<TimesheetDayKey, number> => ({
+  mon: 0,
+  tue: 0,
+  wed: 0,
+  thu: 0,
+  fri: 0,
+  sat: 0,
+  sun: 0
+});
 
-const defaultFilters: TimeTrackingFilters = {
-  employeeId: "",
-  clientId: "",
-  projectId: "",
-  startDate: startOfMonth(),
-  endDate: today(),
-  billable: "all",
-  workCategory: "",
-  search: "",
-  page: 1,
-  pageSize: 25,
-  sortBy: "workDate",
-  sortDirection: "desc"
-};
-
-const sumHours = (entries: TimeEntry[]) => entries.reduce((sum, entry) => sum + entry.hours, 0);
-
-const groupHours = <T extends { label: string; value: number }>(entries: TimeEntry[], keyOf: (entry: TimeEntry) => string) =>
-  Array.from(
-    entries.reduce((map, entry) => {
-      const key = keyOf(entry) || "Unassigned";
-      map.set(key, (map.get(key) ?? 0) + entry.hours);
-      return map;
-    }, new Map<string, number>())
-  )
-    .map(([label, value]) => ({ label, value: Number(value.toFixed(2)) }))
-    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label)) as T[];
-
-const weekLabel = (value: string) => {
-  const parsed = new Date(value);
+const mondayOf = (value: Date | string = new Date()) => {
+  const parsed = typeof value === "string" ? new Date(value) : new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return value;
+    return new Date().toISOString().slice(0, 10);
   }
   const day = parsed.getUTCDay();
   const offset = day === 0 ? 6 : day - 1;
@@ -93,867 +57,820 @@ const weekLabel = (value: string) => {
   return parsed.toISOString().slice(0, 10);
 };
 
-const withinRange = (value: string, start?: string, end?: string) => {
-  if (start && value < start) return false;
-  if (end && value > end) return false;
-  return true;
+const addDays = (value: string, days: number) => {
+  const parsed = new Date(value);
+  parsed.setUTCDate(parsed.getUTCDate() + days);
+  return parsed.toISOString().slice(0, 10);
 };
 
-const activeProjectStatuses = new Set(["active", "in progress", "open", "current", "ongoing", "started"]);
+const emptyTotals = (): WeeklyTimesheetTotals => ({
+  ...emptyHours(),
+  weeklyTotal: 0,
+  billableTotal: 0,
+  nonBillableTotal: 0
+});
 
-const deriveEmployeeOptions = (
-  employees: Array<{
-    id: string;
-    fullName: string;
-    email: string;
-    title: string;
-    employeeRegion: string;
-    supervisorName: string;
-  }>
-): TimeEntryEmployeeOption[] =>
-  [...employees]
-    .map((employee) => ({
-      id: employee.id,
-      fullName: employee.fullName,
-      email: employee.email,
-      title: employee.title,
-      employeeRegion: employee.employeeRegion,
-      supervisorName: employee.supervisorName
-    }))
-    .sort((a, b) => a.fullName.localeCompare(b.fullName));
-
-const findLikelyClientName = (projectName: string, clients: Client[]) => {
-  const normalizedProject = safeLower(projectName);
-  const matches = clients.filter((client) => {
-    const normalizedClient = safeLower(client.clientName);
-    return normalizedClient && normalizedProject.includes(normalizedClient);
-  });
-  if (!matches.length) {
-    return null;
+const createEmptyRow = (seed?: Partial<WeeklyTimesheetRow>): WeeklyTimesheetRow => ({
+  rowGroupId: seed?.rowGroupId ?? crypto.randomUUID(),
+  clientId: seed?.clientId ?? null,
+  clientName: seed?.clientName ?? "",
+  projectId: seed?.projectId ?? "",
+  projectName: seed?.projectName ?? "",
+  workCategory: seed?.workCategory ?? "Client Work",
+  billable: seed?.billable ?? true,
+  notes: seed?.notes ?? "",
+  holidayOrWeekendReason: seed?.holidayOrWeekendReason ?? "",
+  hours: {
+    ...emptyHours(),
+    ...(seed?.hours ?? {})
   }
-  return [...matches].sort((a, b) => b.clientName.length - a.clientName.length)[0] ?? null;
+});
+
+const calculateTotals = (rows: WeeklyTimesheetRow[]) =>
+  rows.reduce<WeeklyTimesheetTotals>((acc, row) => {
+    const rowTotal = dayKeys.reduce((sum, key) => sum + (row.hours[key] ?? 0), 0);
+    for (const key of dayKeys) {
+      acc[key] = Number((acc[key] + (row.hours[key] ?? 0)).toFixed(2));
+    }
+    acc.weeklyTotal = Number((acc.weeklyTotal + rowTotal).toFixed(2));
+    if (row.billable) {
+      acc.billableTotal = Number((acc.billableTotal + rowTotal).toFixed(2));
+    } else {
+      acc.nonBillableTotal = Number((acc.nonBillableTotal + rowTotal).toFixed(2));
+    }
+    return acc;
+  }, emptyTotals());
+
+const rowTotal = (row: WeeklyTimesheetRow) =>
+  Number(dayKeys.reduce((sum, key) => sum + (row.hours[key] ?? 0), 0).toFixed(2));
+
+const normalizeStatus = (entries: TimeEntry[]) => {
+  if (!entries.length) {
+    return "not-started";
+  }
+  const statuses = new Set(entries.map((entry) => entry.approvalStatus));
+  if (statuses.has("draft")) return "draft";
+  if (statuses.has("rejected")) return "rejected";
+  if (statuses.has("submitted")) return "submitted";
+  if (statuses.has("approved")) return "approved";
+  return "draft";
 };
 
-const isEligibleProject = (project: {
-  projectStartDate: string | null;
-  projectEndDate: string | null;
-  projectStatus: string;
-}) => {
-  const now = new Date();
-  const fiveYearsAgo = new Date(now);
-  fiveYearsAgo.setUTCFullYear(fiveYearsAgo.getUTCFullYear() - 5);
-  const start = project.projectStartDate ? new Date(project.projectStartDate) : null;
-  const end = project.projectEndDate ? new Date(project.projectEndDate) : null;
-  const status = safeLower(project.projectStatus);
+const shiftWeek = (weekStart: string, days: number) => addDays(weekStart, days);
 
-  if (start && !Number.isNaN(start.getTime()) && start >= fiveYearsAgo) return true;
-  if (end && !Number.isNaN(end.getTime()) && end >= fiveYearsAgo) return true;
-  if (activeProjectStatuses.has(status)) return true;
-  if (!end && start && !Number.isNaN(start.getTime()) && start >= fiveYearsAgo) return true;
-  return false;
-};
-
-const deriveProjectOptions = (projects: Array<{
-  id: string;
-  projectName: string;
-  projectStatus: string;
-  projectManager: string;
-  projectStartDate: string | null;
-  projectEndDate: string | null;
-  projectRegion: string;
-  budgetHours: number | null;
-  budgetCost: number | null;
-}>, clients: Client[]): TimeEntryProjectOption[] =>
-  projects
-    .filter((project) => isEligibleProject(project))
-    .map((project) => {
-      const client = findLikelyClientName(project.projectName, clients);
-      return {
-        id: project.id,
-        projectName: project.projectName,
-        clientId: client?.id ?? null,
-        clientName: client?.clientName ?? "",
-        projectStatus: project.projectStatus,
-        projectManager: project.projectManager,
-        projectStartDate: project.projectStartDate,
-        projectEndDate: project.projectEndDate,
-        projectRegion: project.projectRegion,
-        budgetHours: project.budgetHours,
-        budgetCost: project.budgetCost,
-        label: [project.projectName, client?.clientName, project.projectManager, project.projectStatus]
-          .filter(Boolean)
-          .join(" — ")
-      };
-    })
-    .sort((a, b) => a.projectName.localeCompare(b.projectName));
-
-export function TimeTrackingPage({
-  refreshToken,
-  onDataChange
-}: {
+interface TimeTrackingPageProps {
   refreshToken: number;
   onDataChange: () => void;
-}) {
-  const [activeTab, setActiveTab] = useState<TimeTrackingTab>("Submit Time");
-  const [filters, setFilters] = useState(defaultFilters);
-  const [entries, setEntries] = useState<TimeEntry[]>([]);
-  const [employees, setEmployees] = useState<TimeEntryEmployeeOption[]>([]);
+}
+
+export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPageProps) {
+  const [activeTab, setActiveTab] = useState<TimesheetTab>("Weekly Timesheet");
+  const [employees, setEmployees] = useState<TimesheetEmployeeOption[]>([]);
+  const [clients, setClients] = useState<TimesheetClientOption[]>([]);
   const [projects, setProjects] = useState<TimeEntryProjectOption[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [detail, setDetail] = useState<TimeEntry | null>(null);
-  const [editTarget, setEditTarget] = useState<TimeEntry | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<TimeEntry | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [weekStart, setWeekStart] = useState(mondayOf());
+  const [currentWeek, setCurrentWeek] = useState<WeeklyTimesheet | null>(null);
+  const [rows, setRows] = useState<WeeklyTimesheetRow[]>([]);
+  const [showWeekend, setShowWeekend] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(true);
+  const [loadingWeek, setLoadingWeek] = useState(false);
+  const [savingWeek, setSavingWeek] = useState(false);
   const [error, setError] = useState("");
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
-  const [loadingProjects, setLoadingProjects] = useState(true);
-  const [loadingClients, setLoadingClients] = useState(true);
-  const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
+  const [success, setSuccess] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [pendingSelection, setPendingSelection] = useState<{ employeeId: string; weekStart: string } | null>(null);
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+  const [viewEntry, setViewEntry] = useState<TimeEntry | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
+  const [submittedFilters, setSubmittedFilters] = useState({
+    employeeId: "",
+    clientId: "",
+    projectId: "",
+    status: "",
+    billable: "",
+    startDate: mondayOf(),
+    endDate: addDays(mondayOf(), 6),
+    search: "",
+    page: 1,
+    pageSize: 25
+  });
+  const [submittedEntries, setSubmittedEntries] = useState<TimeEntry[]>([]);
+  const [submittedTotal, setSubmittedTotal] = useState(0);
+  const [submittedLoading, setSubmittedLoading] = useState(false);
+  const [reviewEntries, setReviewEntries] = useState<TimeEntry[]>([]);
+  const [reviewLoading, setReviewLoading] = useState(false);
+
+  const days = currentWeek?.days ?? dayKeys.map((key, index) => ({ key, label: key[0].toUpperCase() + key.slice(1, 3), date: addDays(weekStart, index) }));
+  const totals = useMemo(() => calculateTotals(rows), [rows]);
+  const weekendHoursHidden = !showWeekend && rows.some((row) => (row.hours.sat ?? 0) > 0 || (row.hours.sun ?? 0) > 0);
+  const weekEnd = currentWeek?.weekEnd ?? addDays(weekStart, 6);
+
+  const weekStatus = currentWeek?.status ?? "not-started";
+  const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
+
+  const teamReviewRows = useMemo(() => {
+    const grouped = new Map<string, { employeeId: string; employeeName: string; totalHours: number; billableHours: number; nonBillableHours: number; entries: TimeEntry[] }>();
+    for (const entry of reviewEntries) {
+      const current =
+        grouped.get(entry.employeeId) ?? {
+          employeeId: entry.employeeId,
+          employeeName: entry.employeeName,
+          totalHours: 0,
+          billableHours: 0,
+          nonBillableHours: 0,
+          entries: []
+        };
+      current.totalHours += entry.hours;
+      if (entry.billable) {
+        current.billableHours += entry.hours;
+      } else {
+        current.nonBillableHours += entry.hours;
+      }
+      current.entries.push(entry);
+      grouped.set(entry.employeeId, current);
+    }
+
+    return employees
+      .map((employee) => {
+        const current = grouped.get(employee.id);
+        return {
+          employeeId: employee.id,
+          employeeName: employee.fullName,
+          totalHours: Number((current?.totalHours ?? 0).toFixed(2)),
+          billableHours: Number((current?.billableHours ?? 0).toFixed(2)),
+          nonBillableHours: Number((current?.nonBillableHours ?? 0).toFixed(2)),
+          status: normalizeStatus(current?.entries ?? [])
+        };
+      })
+      .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+  }, [employees, reviewEntries]);
+
+  const teamReviewStats = useMemo(() => {
+    const employeesSubmitted = teamReviewRows.filter((row) => row.status === "submitted" || row.status === "approved").length;
+    const employeesMissing = teamReviewRows.filter((row) => row.status === "not-started").length;
+    const totalHours = Number(teamReviewRows.reduce((sum, row) => sum + row.totalHours, 0).toFixed(2));
+    const billableHours = Number(teamReviewRows.reduce((sum, row) => sum + row.billableHours, 0).toFixed(2));
+    const nonBillableHours = Number(teamReviewRows.reduce((sum, row) => sum + row.nonBillableHours, 0).toFixed(2));
+    return {
+      employeesSubmitted,
+      employeesMissing,
+      totalHours,
+      billableHours,
+      nonBillableHours
+    };
+  }, [teamReviewRows]);
+
+  const exportCurrentWeekUrl = selectedEmployeeId
+    ? api.exportUrl("/timesheets/export", { employeeId: selectedEmployeeId, weekStart })
+    : "";
+
+  const loadOptions = async () => {
+    setLoadingOptions(true);
+    try {
+      const [employeeRows, clientRows, projectRows] = await Promise.all([
+        api.getTimesheetEmployeeOptions(),
+        api.getTimesheetClientOptions(),
+        api.getTimesheetProjectOptions()
+      ]);
+      setEmployees(employeeRows);
+      setClients(clientRows);
+      setProjects(projectRows);
+      if (!selectedEmployeeId && employeeRows[0]?.id) {
+        setSelectedEmployeeId(employeeRows[0].id);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load timesheet options.");
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  const loadWeek = async (employeeId: string, targetWeekStart: string) => {
+    if (!employeeId) {
+      setCurrentWeek(null);
+      setRows([createEmptyRow()]);
+      return;
+    }
+    setLoadingWeek(true);
     setError("");
-    setLoadWarnings([]);
-    setLoadingEmployees(true);
-    setLoadingProjects(true);
-    setLoadingClients(true);
+    try {
+      const week = await api.getTimesheetWeek(employeeId, targetWeekStart);
+      setCurrentWeek(week);
+      setRows(week.rows.length ? week.rows.map((row) => createEmptyRow(row)) : [createEmptyRow()]);
+      setShowWeekend(week.showWeekend);
+      setDirty(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load the weekly timesheet.");
+    } finally {
+      setLoadingWeek(false);
+    }
+  };
 
-    const load = async () => {
-      const warnings: string[] = [];
+  const loadSubmittedEntries = async () => {
+    setSubmittedLoading(true);
+    try {
+      const response = await api.getTimesheets({
+        employeeId: submittedFilters.employeeId || undefined,
+        clientId: submittedFilters.clientId || undefined,
+        projectId: submittedFilters.projectId || undefined,
+        status: submittedFilters.status || undefined,
+        billable:
+          submittedFilters.billable === ""
+            ? undefined
+            : submittedFilters.billable === "true",
+        startDate: submittedFilters.startDate || undefined,
+        endDate: submittedFilters.endDate || undefined,
+        search: submittedFilters.search || undefined,
+        page: submittedFilters.page,
+        pageSize: submittedFilters.pageSize
+      });
+      setSubmittedEntries(response.data);
+      setSubmittedTotal(response.total);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load submitted entries.");
+    } finally {
+      setSubmittedLoading(false);
+    }
+  };
 
-      const clientPromise = api.getClients({
-        search: "",
-        clientStatus: "",
-        clientInvoiceCurrency: "",
-        clientManager: "",
-        missingContact: false,
-        missingDescription: false,
-        missingManager: false,
+  const loadTeamReview = async () => {
+    setReviewLoading(true);
+    try {
+      const response = await api.getTimesheets({
+        startDate: weekStart,
+        endDate: weekEnd,
         page: 1,
         pageSize: 5000
       });
+      setReviewEntries(response.data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load team review.");
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
-      const [clientResult, entryResult, employeeOptionsResult, projectOptionsResult] = await Promise.allSettled([
-        clientPromise,
-        api.getTimeEntries({
-          page: 1,
-          pageSize: 5000,
-          sortBy: "workDate",
-          sortDirection: "desc"
-        }),
-        api.getTimeEntryEmployeeOptions(),
-        api.getTimeEntryProjectOptions()
-      ]);
-
-      const loadedClients =
-        clientResult.status === "fulfilled" ? clientResult.value.data : [];
-      if (active) {
-        setClients(loadedClients);
-        setLoadingClients(false);
-      }
-      if (clientResult.status !== "fulfilled") {
-        warnings.push("Clients could not be loaded from the API.");
-      }
-
-      if (entryResult.status === "fulfilled") {
-        if (active) {
-          setEntries(entryResult.value.data);
-        }
-      } else if (active) {
-        setEntries([]);
-        setError(entryResult.reason instanceof Error ? entryResult.reason.message : "Time entries failed to load.");
-      }
-
-      if (employeeOptionsResult.status === "fulfilled" && employeeOptionsResult.value.length > 0) {
-        if (active) {
-          setEmployees(employeeOptionsResult.value);
-          setLoadingEmployees(false);
-        }
-      } else {
-        try {
-          const fallbackEmployees = await api.getEmployees({
-            search: "",
-            region: "",
-            country: "",
-            title: "",
-            supervisor: "",
-            titleCode: "",
-            hireYear: "",
-            page: 1,
-            pageSize: 5000,
-            sortBy: "name",
-            sortDirection: "asc"
-          });
-          if (active) {
-            setEmployees(deriveEmployeeOptions(fallbackEmployees.data));
-            setLoadingEmployees(false);
-          }
-          warnings.push("Using fallback employee data from the main Employees API.");
-        } catch (caught) {
-          if (active) {
-            setEmployees([]);
-            setLoadingEmployees(false);
-          }
-          warnings.push(caught instanceof Error ? caught.message : "Employees failed to load.");
-        }
-      }
-
-      if (projectOptionsResult.status === "fulfilled" && projectOptionsResult.value.length > 0) {
-        if (active) {
-          setProjects(projectOptionsResult.value);
-          setLoadingProjects(false);
-        }
-      } else {
-        try {
-          const fallbackProjects = await api.getProjects({
-            search: "",
-            manager: "",
-            managerEmail: "",
-            poNumber: "",
-            soldBy: "",
-            projectStatus: "",
-            projectRegion: "",
-            projectCurrency: "",
-            missingPoNumber: false,
-            missingManager: false,
-            missingManagerEmail: false,
-            missingStartDate: false,
-            missingEndDate: false,
-            page: 1,
-            pageSize: 5000
-          });
-          if (active) {
-            setProjects(deriveProjectOptions(fallbackProjects.data, loadedClients));
-            setLoadingProjects(false);
-          }
-          warnings.push(
-            fallbackProjects.data.length
-              ? "Using fallback project data from the main Projects API."
-              : "No project records were returned from the Projects API."
-          );
-        } catch (caught) {
-          if (active) {
-            setProjects([]);
-            setLoadingProjects(false);
-          }
-          warnings.push(caught instanceof Error ? caught.message : "Projects failed to load.");
-        }
-      }
-
-      if (active) {
-        setLoadWarnings([...new Set(warnings)]);
-        setLoading(false);
-      }
-    };
-
-    load();
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    void loadOptions();
   }, [refreshToken]);
 
-  const filteredEntries = useMemo(() => {
-    return entries
-      .filter((entry) => {
-        const haystack = safeLower(
-          [
-            entry.employeeName,
-            entry.employeeEmail,
-            entry.projectName,
-            entry.clientName,
-            entry.projectManager,
-            entry.workCategory,
-            entry.notes
-          ].join(" ")
-        );
-        if (filters.search && !haystack.includes(safeLower(filters.search))) return false;
-        if (filters.employeeId && entry.employeeId !== filters.employeeId) return false;
-        if (filters.clientId && entry.clientId !== filters.clientId) return false;
-        if (filters.projectId && entry.projectId !== filters.projectId) return false;
-        if (!withinRange(entry.workDate, filters.startDate, filters.endDate)) return false;
-        if (filters.billable === "true" && !entry.billable) return false;
-        if (filters.billable === "false" && entry.billable) return false;
-        if (filters.workCategory && entry.workCategory !== filters.workCategory) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const direction = filters.sortDirection === "asc" ? 1 : -1;
-        switch (filters.sortBy) {
-          case "hours":
-            return (a.hours - b.hours) * direction;
-          case "employeeName":
-            return a.employeeName.localeCompare(b.employeeName) * direction;
-          case "projectName":
-            return a.projectName.localeCompare(b.projectName) * direction;
-          case "createdAt":
-            return a.createdAt.localeCompare(b.createdAt) * direction;
-          case "workDate":
-          default:
-            return a.workDate.localeCompare(b.workDate) * direction;
+  useEffect(() => {
+    if (selectedEmployeeId) {
+      void loadWeek(selectedEmployeeId, weekStart);
+    }
+  }, [selectedEmployeeId, weekStart, refreshToken]);
+
+  useEffect(() => {
+    if (activeTab === "Submitted Entries") {
+      void loadSubmittedEntries();
+    }
+  }, [activeTab, submittedFilters, refreshToken]);
+
+  useEffect(() => {
+    if (activeTab === "Team Review") {
+      void loadTeamReview();
+    }
+  }, [activeTab, weekStart, refreshToken]);
+
+  const requestWeekChange = (next: { employeeId: string; weekStart: string }) => {
+    if (dirty) {
+      setPendingSelection(next);
+      setConfirmDiscardOpen(true);
+      return;
+    }
+    setSelectedEmployeeId(next.employeeId);
+    setWeekStart(next.weekStart);
+  };
+
+  const applyPendingSelection = () => {
+    if (!pendingSelection) return;
+    setSelectedEmployeeId(pendingSelection.employeeId);
+    setWeekStart(pendingSelection.weekStart);
+    setPendingSelection(null);
+    setConfirmDiscardOpen(false);
+  };
+
+  const markDirty = () => {
+    setDirty(true);
+    setSuccess("");
+  };
+
+  const updateRow = (rowGroupId: string, patch: Partial<WeeklyTimesheetRow>) => {
+    setRows((current) =>
+      current.map((row) => {
+        if (row.rowGroupId !== rowGroupId) {
+          return row;
         }
-      });
-  }, [entries, filters]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / filters.pageSize));
-  const currentPage = Math.min(filters.page, totalPages);
-  const pagedEntries = filteredEntries.slice((currentPage - 1) * filters.pageSize, currentPage * filters.pageSize);
-
-  const weeklyEntries = useMemo(
-    () => entries.filter((entry) => withinRange(entry.workDate, startOfWeek(), today())),
-    [entries]
-  );
-  const monthlyEntries = useMemo(
-    () => entries.filter((entry) => withinRange(entry.workDate, startOfMonth(), today())),
-    [entries]
-  );
-
-  const overallSummary = useMemo(() => {
-    const totalWeek = sumHours(weeklyEntries);
-    const totalMonth = sumHours(monthlyEntries);
-    const billableHours = sumHours(entries.filter((entry) => entry.billable));
-    const nonBillableHours = sumHours(entries.filter((entry) => !entry.billable));
-    const topProject = groupHours(entries, (entry) => entry.projectName)[0];
-    return {
-      totalWeek,
-      totalMonth,
-      billableHours,
-      nonBillableHours,
-      entriesThisWeek: weeklyEntries.length,
-      projectsWithTime: new Set(entries.map((entry) => entry.projectId)).size,
-      topProject
-    };
-  }, [entries, monthlyEntries, weeklyEntries]);
-
-  const reportSummary = useMemo(() => {
-    const hoursByProject = groupHours(filteredEntries, (entry) => entry.projectName);
-    const hoursByEmployee = groupHours(filteredEntries, (entry) => entry.employeeName);
-    const hoursByClient = groupHours(filteredEntries, (entry) => entry.clientName || "Unassigned");
-    const hoursByWeek = groupHours(filteredEntries, (entry) => weekLabel(entry.workDate));
-    const billableByWeek = Array.from(
-      filteredEntries.reduce((map, entry) => {
-        const key = weekLabel(entry.workDate);
-        const current = map.get(key) ?? { label: key, billableHours: 0, nonBillableHours: 0 };
-        if (entry.billable) {
-          current.billableHours += entry.hours;
-        } else {
-          current.nonBillableHours += entry.hours;
+        const next = { ...row, ...patch };
+        if (patch.workCategory && nonBillableDefaultCategories.has(patch.workCategory)) {
+          next.billable = false;
         }
-        map.set(key, current);
-        return map;
-      }, new Map<string, { label: string; billableHours: number; nonBillableHours: number }>())
-    )
-      .map(([, value]) => ({
-        ...value,
-        billableHours: Number(value.billableHours.toFixed(2)),
-        nonBillableHours: Number(value.nonBillableHours.toFixed(2))
-      }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    const utilizationHints = projects
-      .map((project) => {
-        const actualHours = Number(
-          filteredEntries
-            .filter((entry) => entry.projectId === project.id)
-            .reduce((sum, entry) => sum + entry.hours, 0)
-            .toFixed(2)
-        );
-        const budgetHours = project.budgetHours;
-        const remainingHours = budgetHours == null ? null : Number((budgetHours - actualHours).toFixed(2));
-        const percentUsed =
-          budgetHours && budgetHours > 0 ? Number(((actualHours / budgetHours) * 100).toFixed(1)) : null;
-        const status =
-          budgetHours == null
-            ? "unbudgeted"
-            : percentUsed != null && percentUsed >= 100
-              ? "at-risk"
-              : percentUsed != null && percentUsed >= 80
-                ? "watch"
-                : "healthy";
-        return {
-          projectId: project.id,
-          projectName: project.projectName,
-          budgetHours,
-          actualHours,
-          remainingHours,
-          percentUsed,
-          status
-        };
+        return next;
       })
-      .filter((item) => item.actualHours > 0)
-      .sort((a, b) => b.actualHours - a.actualHours)
-      .slice(0, 10);
+    );
+    markDirty();
+  };
 
-    return { hoursByProject, hoursByEmployee, hoursByClient, hoursByWeek, billableByWeek, utilizationHints };
-  }, [filteredEntries, projects]);
+  const updateHours = (rowGroupId: string, dayKey: TimesheetDayKey, value: number) => {
+    const normalized = Number.isFinite(value) ? Math.min(24, Math.max(0, value)) : 0;
+    setRows((current) =>
+      current.map((row) =>
+        row.rowGroupId === rowGroupId
+          ? { ...row, hours: { ...row.hours, [dayKey]: Number(normalized.toFixed(2)) } }
+          : row
+      )
+    );
+    markDirty();
+  };
 
-  const filterOptions = useMemo(
-    () => ({
-      employees,
-      clients,
-      projects,
-      categories
-    }),
-    [employees, clients, projects]
-  );
+  const addRow = (seed?: Partial<WeeklyTimesheetRow>) => {
+    setRows((current) => [...current, createEmptyRow(seed)]);
+    markDirty();
+  };
 
-  const trackedHoursByProject = useMemo(
-    () =>
-      entries.reduce<Record<string, number>>((acc, entry) => {
-        acc[entry.projectId] = Number(((acc[entry.projectId] ?? 0) + entry.hours).toFixed(2));
-        return acc;
-      }, {}),
-    [entries]
-  );
+  const duplicateRow = (rowGroupId: string) => {
+    const row = rows.find((candidate) => candidate.rowGroupId === rowGroupId);
+    if (!row) return;
+    addRow({
+      ...row,
+      rowGroupId: crypto.randomUUID(),
+      hours: { ...row.hours }
+    });
+  };
+
+  const deleteRow = (rowGroupId: string) => {
+    setRows((current) => {
+      const next = current.filter((row) => row.rowGroupId !== rowGroupId);
+      return next.length ? next : [createEmptyRow()];
+    });
+    markDirty();
+  };
+
+  const clearEmptyRows = () => {
+    setRows((current) => {
+      const next = current.filter((row) => rowTotal(row) > 0 || row.projectId || row.notes || row.clientId);
+      return next.length ? next : [createEmptyRow()];
+    });
+    markDirty();
+  };
+
+  const buildSavePayload = (status: "draft" | "submitted") => ({
+    employeeId: selectedEmployeeId,
+    weekStart,
+    status,
+    showWeekend,
+    rows: rows.map((row) => ({
+      rowGroupId: row.rowGroupId,
+      clientId: row.clientId,
+      projectId: row.projectId,
+      workCategory: row.workCategory,
+      billable: row.billable,
+      notes: row.notes,
+      holidayOrWeekendReason: row.holidayOrWeekendReason,
+      hours: row.hours
+    }))
+  });
+
+  const persistWeek = async (status: "draft" | "submitted") => {
+    if (!selectedEmployeeId) {
+      setError("Select an employee before saving the weekly timesheet.");
+      return;
+    }
+    if (status === "submitted" && totals.weeklyTotal <= 0) {
+      setError("Weekly total is 0. Add hours before submitting.");
+      return;
+    }
+    setSavingWeek(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await api.saveTimesheetWeek(buildSavePayload(status));
+      setCurrentWeek(response);
+      setRows(response.rows.length ? response.rows.map((row) => createEmptyRow(row)) : [createEmptyRow()]);
+      setDirty(false);
+      setSuccess(status === "submitted" ? "Timesheet submitted." : "Timesheet saved.");
+      onDataChange();
+      if (activeTab === "Submitted Entries") {
+        void loadSubmittedEntries();
+      }
+      if (activeTab === "Team Review") {
+        void loadTeamReview();
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to save the weekly timesheet.");
+    } finally {
+      setSavingWeek(false);
+    }
+  };
+
+  const copyPreviousWeek = async () => {
+    if (!selectedEmployeeId) {
+      setError("Select an employee before copying a previous week.");
+      return;
+    }
+    setSavingWeek(true);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await api.copyPreviousTimesheetWeek(selectedEmployeeId, weekStart);
+      setCurrentWeek(response);
+      setRows(response.rows.length ? response.rows.map((row) => createEmptyRow(row)) : [createEmptyRow()]);
+      setShowWeekend(response.showWeekend);
+      setDirty(true);
+      setSuccess("Previous week copied. Hours were reset to 0.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to copy the previous week.");
+    } finally {
+      setSavingWeek(false);
+    }
+  };
 
   return (
-    <div className="page-grid">
-      <section className="panel">
-        <div className="panel__header">
+    <div className="page-grid time-tracking-page">
+      <section className="panel time-tracking-header-card">
+        <div className="time-tracking-header-top">
           <div>
-            <span className="page-kicker">Operations</span>
             <h3>Time Tracking</h3>
-            <p>Track employee project hours, review billable time, and compare actual hours against project budgets.</p>
+            <p>Submit weekly project hours by employee, client, and project.</p>
+          </div>
+          <div className="tabbar time-tracking-tabs">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                className={`tabbar__item${activeTab === tab ? " tabbar__item--active" : ""}`}
+                onClick={() => setActiveTab(tab)}
+                type="button"
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
-        <div className="tabbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab}
-              className={`tabbar__item${activeTab === tab ? " tabbar__item--active" : ""}`}
-              onClick={() => setActiveTab(tab)}
-              type="button"
-            >
-              {tab}
+
+        <div className="time-tracking-toolbar">
+          <div className="time-tracking-control-group time-tracking-control-group--selectors">
+            <label>
+              <span>Employee</span>
+              <select
+                disabled={loadingOptions}
+                value={selectedEmployeeId}
+                onChange={(event) => requestWeekChange({ employeeId: event.target.value, weekStart })}
+              >
+                <option value="">Select employee</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.fullName} — {employee.title || "No title"}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Week start</span>
+              <input
+                type="date"
+                value={weekStart}
+                onChange={(event) => requestWeekChange({ employeeId: selectedEmployeeId, weekStart: mondayOf(event.target.value) })}
+              />
+            </label>
+
+            <label className="toggle time-tracking-toggle">
+              <input checked={showWeekend} onChange={(event) => { setShowWeekend(event.target.checked); markDirty(); }} type="checkbox" />
+              <span>Show weekend</span>
+            </label>
+          </div>
+
+          <div className="time-tracking-control-group time-tracking-control-group--navigation">
+            <button className="button" onClick={() => requestWeekChange({ employeeId: selectedEmployeeId, weekStart: shiftWeek(weekStart, -7) })} type="button">Previous week</button>
+            <button className="button" onClick={() => requestWeekChange({ employeeId: selectedEmployeeId, weekStart: shiftWeek(weekStart, 7) })} type="button">Next week</button>
+            <button className="button button--ghost" onClick={() => requestWeekChange({ employeeId: selectedEmployeeId, weekStart: mondayOf() })} type="button">Current week</button>
+          </div>
+
+          <div className="time-tracking-control-group time-tracking-control-group--actions">
+            <button className="button" disabled={!selectedEmployeeId || savingWeek} onClick={() => void copyPreviousWeek()} type="button">
+              Copy previous week
             </button>
-          ))}
+            <button className="button" disabled={!selectedEmployeeId || savingWeek} onClick={() => void persistWeek("draft")} type="button">
+              Save draft
+            </button>
+            <button className="button button--primary" disabled={!selectedEmployeeId || savingWeek} onClick={() => void persistWeek("submitted")} type="button">
+              Submit week
+            </button>
+            <a className={`button${!exportCurrentWeekUrl ? " button--disabled" : ""}`} href={exportCurrentWeekUrl || undefined}>
+              Export current week
+            </a>
+          </div>
         </div>
+
+        <div className="badge-row">
+          <span className="badge badge--info">{selectedEmployee?.fullName || "No employee selected"}</span>
+          <span className="badge badge--neutral">{formatDate(weekStart)} to {formatDate(weekEnd)}</span>
+          <span className={`badge badge--${weekStatus === "submitted" || weekStatus === "approved" ? "success" : weekStatus === "draft" ? "warn" : "neutral"}`}>
+            {weekStatus}
+          </span>
+        </div>
+
+        {weekendHoursHidden ? (
+          <div className="helper-banner">
+            <strong>Weekend hours exist for this week.</strong>
+            <span>They are hidden while weekend columns are off, but they have not been deleted.</span>
+          </div>
+        ) : null}
+
+        {error ? <div className="error-text">{error}</div> : null}
+        {success ? <div className="helper-banner"><strong>Saved</strong><span>{success}</span></div> : null}
       </section>
 
-      <section className="stat-grid">
-        <StatCard label="Total hours this week" value={overallSummary.totalWeek.toFixed(2)} tone="accent" />
-        <StatCard label="Total hours this month" value={overallSummary.totalMonth.toFixed(2)} />
-        <StatCard label="Billable hours" value={overallSummary.billableHours.toFixed(2)} />
-        <StatCard label="Non-billable hours" value={overallSummary.nonBillableHours.toFixed(2)} />
-        <StatCard label="Entries this week" value={overallSummary.entriesThisWeek} />
-        <StatCard label="Projects with tracked time" value={overallSummary.projectsWithTime} />
-        <StatCard
-          label="Top project by hours"
-          value={overallSummary.topProject ? `${overallSummary.topProject.label} (${overallSummary.topProject.value.toFixed(1)})` : "No entries"}
-        />
-      </section>
-
-      {activeTab === "Submit Time" ? (
-        <section className="page-grid page-grid--two">
-          <div className="panel">
-            <div className="panel__header">
-              <div>
-                <h3>Submit time</h3>
-                <p>Log project work using existing employee and project data from Neon.</p>
-              </div>
-            </div>
-            <TimeEntryForm
-              employees={employees}
-              projects={projects}
+      {activeTab === "Weekly Timesheet" ? (
+        <>
+          <section className="stat-grid time-summary-grid">
+            <StatCard label="Week total" value={totals.weeklyTotal.toFixed(2)} tone="accent" />
+            <StatCard label="Billable" value={totals.billableTotal.toFixed(2)} />
+            <StatCard label="Non-billable" value={totals.nonBillableTotal.toFixed(2)} />
+            <StatCard label="Rows" value={rows.length} />
+          </section>
+          {loadingWeek ? (
+            <section className="panel"><div className="hint-box">Loading weekly timesheet…</div></section>
+          ) : (
+            <WeeklyTimesheetGrid
+              categories={categories}
               clients={clients}
-              loadingEmployees={loadingEmployees}
-              loadingProjects={loadingProjects}
-              loadingClients={loadingClients}
-              trackedHoursByProject={trackedHoursByProject}
-              onSubmit={async (payload) => {
-                const created = await api.createTimeEntry(payload);
-                setEntries((prev) => [created, ...prev]);
-                onDataChange();
-              }}
-              submitLabel="Submit time"
+              days={days}
+              onAddNonBillableRow={() => addRow({ billable: false, workCategory: "Admin" })}
+              onAddRow={() => addRow()}
+              onChangeHours={updateHours}
+              onChangeRow={updateRow}
+              onClearEmptyRows={clearEmptyRows}
+              onDeleteRow={deleteRow}
+              onDuplicateRow={duplicateRow}
+              projects={projects}
+              rows={rows}
+              saving={savingWeek}
+              showWeekend={showWeekend}
+              totals={totals}
             />
-          </div>
-
-          <div className="panel">
-            <div className="panel__header">
-              <div>
-                <h3>Recent entries</h3>
-                <p>The newest time captured across the team.</p>
-              </div>
-            </div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Employee</th>
-                    <th>Project</th>
-                    <th>Hours</th>
-                    <th>Billable</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.slice(0, 8).map((entry) => (
-                    <tr key={entry.id}>
-                      <td>{formatDate(entry.workDate)}</td>
-                      <td>{entry.employeeName}</td>
-                      <td>{entry.projectName}</td>
-                      <td>{entry.hours.toFixed(2)}</td>
-                      <td>{entry.billable ? "Yes" : "No"}</td>
-                      <td className="row-actions">
-                        <button className="button button--ghost" onClick={() => setDetail(entry)} type="button">
-                          View
-                        </button>
-                        <button className="button" onClick={() => setEditTarget(entry)} type="button">
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!entries.length ? (
-              <div className="empty-state">
-                No time entries yet. Use the form to log the first one.
-              </div>
-            ) : null}
-          </div>
-        </section>
+          )}
+        </>
       ) : null}
 
-      {loadWarnings.length ? (
-        <div className="helper-banner">
-          {loadWarnings.map((warning) => (
-            <div key={warning}>{warning}</div>
-          ))}
-        </div>
-      ) : null}
-
-      {activeTab === "Entries" ? (
+      {activeTab === "Submitted Entries" ? (
         <section className="panel">
           <div className="panel__header">
             <div>
-              <h3>Time entries</h3>
-              <p>Filter, review, edit, and delete tracked work.</p>
+              <h3>Submitted Entries</h3>
+              <p>Review saved time rows across employees, clients, projects, and status.</p>
             </div>
           </div>
           <div className="filters">
-            <input
-              placeholder="Search by employee, project, client, manager, notes"
-              value={filters.search}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
-            />
-            <select
-              value={filters.employeeId}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, employeeId: event.target.value }))}
-            >
-              <option value="">All employees</option>
-              {filterOptions.employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.fullName}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.projectId}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, projectId: event.target.value }))}
-            >
-              <option value="">All projects</option>
-              {filterOptions.projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.projectName}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.clientId}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, clientId: event.target.value }))}
-            >
-              <option value="">All clients</option>
-              {filterOptions.clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.clientName}
-                </option>
-              ))}
-            </select>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, startDate: event.target.value }))}
-            />
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, endDate: event.target.value }))}
-            />
-            <select
-              value={filters.billable}
-              onChange={(event) =>
-                setFilters((current) => ({
-                  ...current,
-                  page: 1,
-                  billable: event.target.value as typeof filters.billable
-                }))
-              }
-            >
-              <option value="all">All time</option>
-              <option value="true">Billable only</option>
-              <option value="false">Non-billable only</option>
-            </select>
-            <select
-              value={filters.workCategory}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, workCategory: event.target.value }))}
-            >
-              <option value="">All categories</option>
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filters.pageSize}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, pageSize: Number(event.target.value) }))
-              }
-            >
-              {[25, 50, 100].map((value) => (
-                <option key={value} value={value}>
-                  {value} per page
-                </option>
-              ))}
-            </select>
+            <label>
+              <span>Employee</span>
+              <select value={submittedFilters.employeeId} onChange={(event) => setSubmittedFilters((current) => ({ ...current, employeeId: event.target.value, page: 1 }))}>
+                <option value="">All employees</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>{employee.fullName}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Client</span>
+              <select value={submittedFilters.clientId} onChange={(event) => setSubmittedFilters((current) => ({ ...current, clientId: event.target.value, page: 1 }))}>
+                <option value="">All clients</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.clientName}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Project</span>
+              <select value={submittedFilters.projectId} onChange={(event) => setSubmittedFilters((current) => ({ ...current, projectId: event.target.value, page: 1 }))}>
+                <option value="">All projects</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.projectName}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select value={submittedFilters.status} onChange={(event) => setSubmittedFilters((current) => ({ ...current, status: event.target.value, page: 1 }))}>
+                <option value="">All statuses</option>
+                <option value="draft">draft</option>
+                <option value="submitted">submitted</option>
+                <option value="approved">approved</option>
+                <option value="rejected">rejected</option>
+              </select>
+            </label>
+            <label>
+              <span>Billable</span>
+              <select value={submittedFilters.billable} onChange={(event) => setSubmittedFilters((current) => ({ ...current, billable: event.target.value, page: 1 }))}>
+                <option value="">All</option>
+                <option value="true">Billable only</option>
+                <option value="false">Non-billable only</option>
+              </select>
+            </label>
+            <label>
+              <span>Search</span>
+              <input value={submittedFilters.search} onChange={(event) => setSubmittedFilters((current) => ({ ...current, search: event.target.value, page: 1 }))} />
+            </label>
+            <label>
+              <span>Start date</span>
+              <input type="date" value={submittedFilters.startDate} onChange={(event) => setSubmittedFilters((current) => ({ ...current, startDate: event.target.value, page: 1 }))} />
+            </label>
+            <label>
+              <span>End date</span>
+              <input type="date" value={submittedFilters.endDate} onChange={(event) => setSubmittedFilters((current) => ({ ...current, endDate: event.target.value, page: 1 }))} />
+            </label>
           </div>
-
-          <div className="table-actions">
-            <a className="button button--ghost" href={api.exportUrl("/time-entries/export")} target="_blank" rel="noreferrer">
-              Export CSV
-            </a>
-          </div>
-
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Date</th>
                   <th>Employee</th>
-                  <th>Project</th>
                   <th>Client</th>
+                  <th>Project</th>
+                  <th>Work Type</th>
                   <th>Hours</th>
                   <th>Billable</th>
-                  <th>Category</th>
+                  <th>Status</th>
                   <th>Notes</th>
-                  <th />
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {pagedEntries.map((entry) => (
+                {submittedEntries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{formatDate(entry.workDate)}</td>
                     <td>{entry.employeeName}</td>
+                    <td>{entry.clientName || "Unassigned"}</td>
                     <td>{entry.projectName}</td>
-                    <td>{entry.clientName || <span className="missing-badge">Missing</span>}</td>
-                    <td>{entry.hours.toFixed(2)}</td>
-                    <td>{entry.billable ? "Billable" : "Non-billable"}</td>
                     <td>{entry.workCategory}</td>
-                    <td>{safeString(entry.notes).slice(0, 60) || <span className="missing-badge">Missing</span>}</td>
-                    <td className="row-actions">
-                      <button className="button button--ghost" onClick={() => setDetail(entry)} type="button">
-                        View
-                      </button>
-                      <button className="button" onClick={() => setEditTarget(entry)} type="button">
-                        Edit
-                      </button>
-                      <button className="button button--danger" onClick={() => setDeleteTarget(entry)} type="button">
-                        Delete
-                      </button>
+                    <td>{entry.hours.toFixed(2)}</td>
+                    <td>{entry.billable ? "Yes" : "No"}</td>
+                    <td><span className={`status-pill status-pill--${entry.approvalStatus}`}>{entry.approvalStatus}</span></td>
+                    <td>{entry.notes || "No notes"}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button className="button" onClick={() => setViewEntry(entry)} type="button">View</button>
+                        <button
+                          className="button"
+                          onClick={() => {
+                            requestWeekChange({
+                              employeeId: entry.employeeId,
+                              weekStart: entry.timesheetWeekStart ?? mondayOf(entry.workDate)
+                            });
+                            setActiveTab("Weekly Timesheet");
+                          }}
+                          type="button"
+                        >
+                          Edit week
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {!submittedEntries.length ? (
+                  <tr>
+                    <td colSpan={10}><div className="hint-box">{submittedLoading ? "Loading entries…" : "No submitted entries match the current filters."}</div></td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
-          {!pagedEntries.length && !loading ? (
-            <div className="empty-state">No time entries match the current filters.</div>
-          ) : null}
-
           <div className="pagination">
-            <span>
-              Page {currentPage} of {totalPages} • {filteredEntries.length} entries
-            </span>
+            <span>Page {submittedFilters.page} of {Math.max(1, Math.ceil(submittedTotal / submittedFilters.pageSize))}</span>
             <div className="pagination__actions">
-              <button
-                className="button"
-                disabled={currentPage <= 1}
-                onClick={() => setFilters((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
-                type="button"
-              >
-                Previous
-              </button>
-              <button
-                className="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setFilters((current) => ({ ...current, page: current.page + 1 }))}
-                type="button"
-              >
-                Next
-              </button>
+              <button className="button" disabled={submittedFilters.page <= 1} onClick={() => setSubmittedFilters((current) => ({ ...current, page: current.page - 1 }))} type="button">Previous</button>
+              <button className="button" disabled={submittedFilters.page >= Math.max(1, Math.ceil(submittedTotal / submittedFilters.pageSize))} onClick={() => setSubmittedFilters((current) => ({ ...current, page: current.page + 1 }))} type="button">Next</button>
             </div>
           </div>
         </section>
       ) : null}
 
-      {activeTab === "Team Summary" ? (
-        <section className="page-grid page-grid--two">
-          <ChartCard title="Hours by project">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={reportSummary.hoursByProject.slice(0, 8)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#0f766e" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-          <ChartCard title="Hours by employee">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={reportSummary.hoursByEmployee.slice(0, 8)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#2563eb" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-          <ChartCard title="Hours by client">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={reportSummary.hoursByClient.slice(0, 8)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#f97316" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-          <ChartCard title="Budget vs actual utilization">
-            <ul className="stack-list">
-              {reportSummary.utilizationHints.map((hint) => (
-                <li key={hint.projectId}>
-                  <strong>{hint.projectName}</strong>
-                  <span>
-                    Actual {hint.actualHours.toFixed(2)} hrs
-                    {hint.budgetHours == null
-                      ? " • No budget hours available"
-                      : ` • Budget ${hint.budgetHours.toFixed(2)} • Remaining ${hint.remainingHours?.toFixed(2) ?? "0.00"} • ${hint.percentUsed?.toFixed(1) ?? "0.0"}% used`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </ChartCard>
-        </section>
-      ) : null}
-
-      {activeTab === "Reports" ? (
-        <section className="page-grid page-grid--two">
-          <ChartCard title="Weekly hours trend">
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={reportSummary.hoursByWeek}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#0f766e" strokeWidth={3} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-          <ChartCard title="Billable vs non-billable by week">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={reportSummary.billableByWeek}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="billableHours" stackId="hours" fill="#0f766e" />
-                <Bar dataKey="nonBillableHours" stackId="hours" fill="#f59e0b" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-          <ChartCard title="Filtered summary">
-            <div className="summary-grid">
+      {activeTab === "Team Review" ? (
+        <>
+          <section className="stat-grid">
+            <StatCard label="Employees submitted" value={teamReviewStats.employeesSubmitted} tone="accent" />
+            <StatCard label="Employees missing time" value={teamReviewStats.employeesMissing} tone="warn" />
+            <StatCard label="Total hours submitted" value={teamReviewStats.totalHours.toFixed(2)} />
+            <StatCard label="Billable / Non-billable" value={`${teamReviewStats.billableHours.toFixed(2)} / ${teamReviewStats.nonBillableHours.toFixed(2)}`} />
+          </section>
+          <section className="panel">
+            <div className="panel__header">
               <div>
-                <span>Total filtered hours</span>
-                <strong>{sumHours(filteredEntries).toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>Billable filtered hours</span>
-                <strong>{sumHours(filteredEntries.filter((entry) => entry.billable)).toFixed(2)}</strong>
-              </div>
-              <div>
-                <span>Unique employees</span>
-                <strong>{new Set(filteredEntries.map((entry) => entry.employeeId)).size}</strong>
-              </div>
-              <div>
-                <span>Unique projects</span>
-                <strong>{new Set(filteredEntries.map((entry) => entry.projectId)).size}</strong>
+                <h3>Team Review</h3>
+                <p>Review weekly totals and submission status across the consulting team.</p>
               </div>
             </div>
-          </ChartCard>
-          <ChartCard title="Export">
-            <p>Download the current time entry dataset as CSV for offline analysis or finance handoff.</p>
-            <a className="button button--primary" href={api.exportUrl("/time-entries/export")} target="_blank" rel="noreferrer">
-              Export time entries CSV
-            </a>
-          </ChartCard>
-        </section>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th>Status</th>
+                    <th>Total Hours</th>
+                    <th>Billable</th>
+                    <th>Non-billable</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teamReviewRows.map((row) => (
+                    <tr key={row.employeeId}>
+                      <td>{row.employeeName}</td>
+                      <td><span className={`badge badge--${row.status === "submitted" || row.status === "approved" ? "success" : row.status === "draft" ? "warn" : "neutral"}`}>{row.status}</span></td>
+                      <td>{row.totalHours.toFixed(2)}</td>
+                      <td>{row.billableHours.toFixed(2)}</td>
+                      <td>{row.nonBillableHours.toFixed(2)}</td>
+                      <td>
+                        <button
+                          className="button"
+                          onClick={() => {
+                            requestWeekChange({ employeeId: row.employeeId, weekStart });
+                            setActiveTab("Weekly Timesheet");
+                          }}
+                          type="button"
+                        >
+                          Open week
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!teamReviewRows.length ? (
+                    <tr><td colSpan={6}><div className="hint-box">{reviewLoading ? "Loading team review…" : "No team review data yet for this week."}</div></td></tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       ) : null}
 
-      {loading ? <div className="empty-state">Loading time tracking...</div> : null}
-      {error ? <div className="error-text">{error}</div> : null}
+      {activeTab === "Export" ? (
+        <div className="page-grid page-grid--two">
+          <section className="panel">
+            <div className="panel__header">
+              <div>
+                <h3>Export Current Week</h3>
+                <p>Download the weekly sheet in an Excel-friendly CSV layout.</p>
+              </div>
+            </div>
+            <div className="stack-list-wrapper">
+              <ul className="stack-list">
+                <li>
+                  <strong>Current selection</strong>
+                  <span>{selectedEmployee?.fullName || "No employee selected"} • {formatDate(weekStart)} to {formatDate(weekEnd)}</span>
+                </li>
+                <li>
+                  <strong>Current total</strong>
+                  <span>{totals.weeklyTotal.toFixed(2)} hrs</span>
+                </li>
+              </ul>
+            </div>
+            <div className="row-actions">
+              <a className={`button button--primary${!exportCurrentWeekUrl ? " button--disabled" : ""}`} href={exportCurrentWeekUrl || undefined}>
+                Export current week
+              </a>
+            </div>
+          </section>
 
-      <Modal
-        open={Boolean(editTarget)}
-        onClose={() => setEditTarget(null)}
-        title={editTarget ? "Edit time entry" : "Edit time entry"}
-        width="wide"
-      >
-        <TimeEntryForm
-          initialValue={editTarget ?? undefined}
-          employees={employees}
-          projects={projects}
-          clients={clients}
-          onSubmit={async (payload) => {
-            if (!editTarget) return;
-            const updated = await api.updateTimeEntry(editTarget.id, payload);
-            setEntries((prev) => prev.map((entry) => (entry.id === updated.id ? updated : entry)));
-            setEditTarget(null);
-            if (detail?.id === updated.id) {
-              setDetail(updated);
-            }
-            onDataChange();
-          }}
-          submitLabel="Save changes"
-        />
-      </Modal>
+          <section className="panel">
+            <div className="panel__header">
+              <div>
+                <h3>What Exports</h3>
+                <p>The export is built for spreadsheet use, not profitability review.</p>
+              </div>
+            </div>
+            <div className="stack-list-wrapper">
+              <ul className="stack-list">
+                <li>Employee</li>
+                <li>Week Start</li>
+                <li>Client</li>
+                <li>Project</li>
+                <li>Work Type</li>
+                <li>Billable</li>
+                <li>Notes</li>
+                <li>Monday through Sunday hours</li>
+                <li>Total hours</li>
+              </ul>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Time entry details" width="wide">
-        {detail ? <TimeEntryDrawer entry={detail} /> : null}
+      <Modal open={Boolean(viewEntry)} onClose={() => setViewEntry(null)} title="Time Entry Detail">
+        {viewEntry ? <TimeEntryDrawer entry={viewEntry} /> : null}
       </Modal>
 
       <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        onCancel={() => setDeleteTarget(null)}
-        onConfirm={async () => {
-          if (!deleteTarget) return;
-          await api.deleteTimeEntry(deleteTarget.id);
-          setEntries((prev) => prev.filter((entry) => entry.id !== deleteTarget.id));
-          if (detail?.id === deleteTarget.id) {
-            setDetail(null);
-          }
-          onDataChange();
+        open={confirmDiscardOpen}
+        title="Discard Unsaved Timesheet Changes?"
+        message="You have unsaved changes for this weekly timesheet. Switch the employee or week anyway?"
+        onCancel={() => {
+          setPendingSelection(null);
+          setConfirmDiscardOpen(false);
         }}
-        title="Delete time entry"
-        message={`Are you sure you want to delete the ${deleteTarget?.projectName ?? "selected"} time entry for ${deleteTarget?.employeeName ?? "this employee"}?`}
+        onConfirm={applyPendingSelection}
       />
     </div>
   );

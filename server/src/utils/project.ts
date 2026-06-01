@@ -47,7 +47,12 @@ export const projectInputSchema = z.object({
   poNumber: z.string().default(""),
   projectSoldBy: z.string().default(""),
   numberOfResources: z.number().nullable().default(null),
-  numberOfWorkWeeks: z.number().nullable().default(null)
+  numberOfWorkWeeks: z.number().nullable().default(null),
+  plannedLoeHours: z.number().nullable().default(null),
+  soldAmount: z.number().nullable().default(null),
+  blendedBillRate: z.number().nullable().default(null),
+  blendedCostRate: z.number().nullable().default(null),
+  profitabilityNotes: z.string().default("")
 });
 
 export const normalizeProjectInput = (
@@ -69,7 +74,12 @@ export const normalizeProjectInput = (
   poNumber: normalizeValue(input.poNumber),
   projectSoldBy: normalizeValue(input.projectSoldBy),
   numberOfResources: parseNumericInput(input.numberOfResources),
-  numberOfWorkWeeks: parseNumericInput(input.numberOfWorkWeeks)
+  numberOfWorkWeeks: parseNumericInput(input.numberOfWorkWeeks),
+  plannedLoeHours: parseNumericInput(input.plannedLoeHours),
+  soldAmount: parseNumericInput(input.soldAmount),
+  blendedBillRate: parseNumericInput(input.blendedBillRate),
+  blendedCostRate: parseNumericInput(input.blendedCostRate),
+  profitabilityNotes: normalizeValue(input.profitabilityNotes)
 });
 
 export const normalizePartialProjectInput = (
@@ -130,6 +140,21 @@ export const normalizePartialProjectInput = (
   if (has("numberOfWorkWeeks")) {
     normalized.numberOfWorkWeeks = parseNumericInput(input.numberOfWorkWeeks);
   }
+  if (has("plannedLoeHours")) {
+    normalized.plannedLoeHours = parseNumericInput(input.plannedLoeHours);
+  }
+  if (has("soldAmount")) {
+    normalized.soldAmount = parseNumericInput(input.soldAmount);
+  }
+  if (has("blendedBillRate")) {
+    normalized.blendedBillRate = parseNumericInput(input.blendedBillRate);
+  }
+  if (has("blendedCostRate")) {
+    normalized.blendedCostRate = parseNumericInput(input.blendedCostRate);
+  }
+  if (has("profitabilityNotes")) {
+    normalized.profitabilityNotes = normalizeValue(input.profitabilityNotes);
+  }
 
   return normalized;
 };
@@ -152,7 +177,12 @@ export const mapRowToProjectInput = (row: Record<string, unknown>): ProjectInput
     poNumber: getField(row, ["PO Number"]),
     projectSoldBy: getField(row, ["Project Sold By"]),
     numberOfResources: getField(row, ["Number of Resources"]),
-    numberOfWorkWeeks: getField(row, ["Number of Work Weeks"])
+    numberOfWorkWeeks: getField(row, ["Number of Work Weeks"]),
+    plannedLoeHours: getField(row, ["Planned LOE Hours", "Planned LOE", "Budget Hours"]),
+    soldAmount: getField(row, ["Sold Amount", "Budget Cost"]),
+    blendedBillRate: getField(row, ["Blended Bill Rate"]),
+    blendedCostRate: getField(row, ["Blended Cost Rate"]),
+    profitabilityNotes: getField(row, ["Profitability Notes"])
   };
 
   if (process.env.NODE_ENV !== "production" && Math.random() < 0.0001) {

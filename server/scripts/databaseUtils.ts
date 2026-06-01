@@ -41,6 +41,7 @@ export const applySchema = async () => {
 export const resetTables = async () => {
   const pool = getPoolOrThrow();
   await pool.query(`
+    DROP TABLE IF EXISTS project_assignments CASCADE;
     DROP TABLE IF EXISTS time_entries CASCADE;
     DROP TABLE IF EXISTS projects CASCADE;
     DROP TABLE IF EXISTS clients CASCADE;

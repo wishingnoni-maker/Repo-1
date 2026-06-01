@@ -19,7 +19,12 @@ export const safeDateLabel = (value: unknown) => {
   if (!raw) {
     return "Missing date";
   }
-  const parsed = new Date(raw);
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? (() => {
+        const [year, month, day] = raw.split("-").map(Number);
+        return new Date(year, month - 1, day, 12, 0, 0);
+      })()
+    : new Date(raw);
   return Number.isNaN(parsed.getTime()) ? raw : parsed.toLocaleDateString();
 };
 

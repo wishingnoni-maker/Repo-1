@@ -13,7 +13,14 @@ export const readJsonCollection = async <T>(
   }
 
   const raw = await fs.readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw) as Record<string, T[]>;
+  let parsed: Record<string, T[]>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, T[]>;
+  } catch {
+    throw new Error(
+      `The local JSON store at ${filePath} is invalid. Restore or reset the file before continuing.`
+    );
+  }
   return parsed[key] ?? [];
 };
 
@@ -23,5 +30,7 @@ export const writeJsonCollection = async <T>(
   items: T[]
 ): Promise<void> => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify({ [key]: items }, null, 2), "utf8");
+  const tempPath = `${filePath}.tmp`;
+  await fs.writeFile(tempPath, JSON.stringify({ [key]: items }, null, 2), "utf8");
+  await fs.rename(tempPath, filePath);
 };

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { TopBar } from "./components/TopBar";
 import { ClientsPage } from "./pages/ClientsPage";
@@ -15,16 +15,30 @@ import { TimeTrackingPage } from "./pages/TimeTrackingPage";
 
 export default function App() {
   const [refreshToken, setRefreshToken] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.localStorage.getItem("workforceHub.sidebarCollapsed") === "true";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("workforceHub.sidebarCollapsed", String(sidebarCollapsed));
+    }
+  }, [sidebarCollapsed]);
+
   const handleDataChange = () => setRefreshToken((current) => current + 1);
 
   return (
     <BrowserRouter>
-      <div className="app-shell">
-        <Sidebar />
+      <div className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+        <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
         <main className="main-shell">
           <TopBar />
           <Routes>
-            <Route element={<DashboardPage refreshToken={refreshToken} />} path="/" />
+            <Route element={<Navigate replace to="/projects" />} path="/" />
+            <Route element={<DashboardPage refreshToken={refreshToken} />} path="/dashboard" />
             <Route
               element={<EmployeesPage refreshToken={refreshToken} onDataChange={handleDataChange} />}
               path="/employees"

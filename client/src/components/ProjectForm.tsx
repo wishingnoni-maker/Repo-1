@@ -18,7 +18,12 @@ const emptyProject: Partial<Project> = {
   poNumber: "",
   projectSoldBy: "",
   numberOfResources: null,
-  numberOfWorkWeeks: null
+  numberOfWorkWeeks: null,
+  plannedLoeHours: null,
+  soldAmount: null,
+  blendedBillRate: null,
+  blendedCostRate: null,
+  profitabilityNotes: ""
 };
 
 const numericFields = new Set([
@@ -27,7 +32,11 @@ const numericFields = new Set([
   "budgetCost",
   "expenseBudgetProjectCurrency",
   "numberOfResources",
-  "numberOfWorkWeeks"
+  "numberOfWorkWeeks",
+  "plannedLoeHours",
+  "soldAmount",
+  "blendedBillRate",
+  "blendedCostRate"
 ]);
 
 interface ProjectFormProps {
@@ -77,7 +86,12 @@ export function ProjectForm({ initialValue, onSubmit, submitLabel }: ProjectForm
         ["poNumber", "PO Number"],
         ["projectSoldBy", "Project Sold By"],
         ["numberOfResources", "Number of Resources"],
-        ["numberOfWorkWeeks", "Number of Work Weeks"]
+        ["numberOfWorkWeeks", "Number of Work Weeks"],
+        ["plannedLoeHours", "Planned LOE Hours"],
+        ["soldAmount", "Sold Amount"],
+        ["blendedBillRate", "Blended Bill Rate"],
+        ["blendedCostRate", "Blended Cost Rate"],
+        ["profitabilityNotes", "Profitability Notes"]
       ].map(([field, label]) => (
         <label key={field}>
           <span>{label}</span>

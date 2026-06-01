@@ -29,6 +29,7 @@ export const createTimeEntryRouter = (timeEntryService: TimeEntryService) => {
         endDate: req.query.endDate as string | undefined,
         billable: parseBoolean(req.query.billable),
         workCategory: req.query.workCategory as string | undefined,
+        approvalStatus: req.query.approvalStatus as string | undefined,
         search: req.query.search as string | undefined,
         page: req.query.page ? Number(req.query.page) : 1,
         pageSize: req.query.pageSize ? Number(req.query.pageSize) : 25,
@@ -48,6 +49,7 @@ export const createTimeEntryRouter = (timeEntryService: TimeEntryService) => {
         endDate: req.query.endDate as string | undefined,
         billable: parseBoolean(req.query.billable),
         workCategory: req.query.workCategory as string | undefined,
+        approvalStatus: req.query.approvalStatus as string | undefined,
         search: req.query.search as string | undefined,
         sortBy: (req.query.sortBy as any) ?? "workDate",
         sortDirection: (req.query.sortDirection as any) ?? "desc"
@@ -72,6 +74,7 @@ export const createTimeEntryRouter = (timeEntryService: TimeEntryService) => {
       endDate: req.query.endDate as string | undefined,
       billable: parseBoolean(req.query.billable),
       workCategory: req.query.workCategory as string | undefined,
+      approvalStatus: req.query.approvalStatus as string | undefined,
       search: req.query.search as string | undefined,
       sortBy: (req.query.sortBy as any) ?? "workDate",
       sortDirection: (req.query.sortDirection as any) ?? "desc"

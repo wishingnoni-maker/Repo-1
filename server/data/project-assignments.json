@@ -1,0 +1,61 @@
+{
+  "projectAssignments": [
+    {
+      "id": "f5e616b6-2392-4fd6-b1cc-b0ef24140315",
+      "projectId": "2ba4d1ab-2245-4a8e-88d0-a1b3ec597557",
+      "employeeId": "cc49eebe-5a87-4762-bfef-2cc1c71e8d10",
+      "employeeName": "",
+      "employeeEmail": "",
+      "employeeTitle": "",
+      "employeeRegion": "",
+      "roleOnProject": "Analyst",
+      "plannedHours": 24,
+      "billRate": 150,
+      "costRate": 90,
+      "allocationPercent": 30,
+      "startDate": "2026-05-12",
+      "endDate": "2026-06-12",
+      "active": true,
+      "createdAt": "2026-05-12T18:37:31.115Z",
+      "updatedAt": "2026-05-12T18:37:31.115Z"
+    },
+    {
+      "id": "059ea4de-760b-4f52-8f33-4d90c61705f1",
+      "projectId": "2ba4d1ab-2245-4a8e-88d0-a1b3ec597557",
+      "employeeId": "50105b9e-0a60-4290-838a-15c886a0b3d0",
+      "employeeName": "",
+      "employeeEmail": "",
+      "employeeTitle": "",
+      "employeeRegion": "",
+      "roleOnProject": "Project Lead",
+      "plannedHours": 40,
+      "billRate": 200,
+      "costRate": 120,
+      "allocationPercent": 50,
+      "startDate": "2026-05-12",
+      "endDate": "2026-06-12",
+      "active": true,
+      "createdAt": "2026-05-12T18:37:31.574Z",
+      "updatedAt": "2026-05-12T18:37:31.574Z"
+    },
+    {
+      "id": "a85adc98-045e-4882-835b-e8659092faba",
+      "projectId": "2ba4d1ab-2245-4a8e-88d0-a1b3ec597557",
+      "employeeId": "04401a4c-dc9d-4cbe-9ec3-023faeec1be8",
+      "employeeName": "",
+      "employeeEmail": "",
+      "employeeTitle": "",
+      "employeeRegion": "",
+      "roleOnProject": "Verifier",
+      "plannedHours": 18,
+      "billRate": 175,
+      "costRate": 100,
+      "allocationPercent": 20,
+      "startDate": "2026-05-12",
+      "endDate": "2026-05-26",
+      "active": false,
+      "createdAt": "2026-05-12T18:56:18.102Z",
+      "updatedAt": "2026-05-12T18:56:18.112Z"
+    }
+  ]
+}

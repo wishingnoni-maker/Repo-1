@@ -118,6 +118,11 @@ export interface Project {
   projectSoldBy: string;
   numberOfResources: number | null;
   numberOfWorkWeeks: number | null;
+  plannedLoeHours: number | null;
+  soldAmount: number | null;
+  blendedBillRate: number | null;
+  blendedCostRate: number | null;
+  profitabilityNotes: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -140,6 +145,11 @@ export interface ProjectInput {
   projectSoldBy: string;
   numberOfResources: number | null;
   numberOfWorkWeeks: number | null;
+  plannedLoeHours: number | null;
+  soldAmount: number | null;
+  blendedBillRate: number | null;
+  blendedCostRate: number | null;
+  profitabilityNotes: string;
 }
 
 export interface ProjectFilters {
@@ -268,7 +278,13 @@ export interface TimeEntry {
   hours: number;
   workCategory: string;
   billable: boolean;
+  approvalStatus: "draft" | "submitted" | "approved" | "rejected";
+  locked: boolean;
+  source: string;
   notes: string;
+  timesheetWeekStart: string | null;
+  rowGroupId: string | null;
+  holidayReason: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -281,7 +297,13 @@ export interface TimeEntryInput {
   hours: number;
   workCategory: string;
   billable: boolean;
+  approvalStatus: "draft" | "submitted" | "approved" | "rejected";
+  locked: boolean;
+  source: string;
   notes: string;
+  timesheetWeekStart: string | null;
+  rowGroupId: string | null;
+  holidayReason: string;
 }
 
 export interface TimeEntryFilters {
@@ -292,11 +314,189 @@ export interface TimeEntryFilters {
   endDate?: string;
   billable?: boolean;
   workCategory?: string;
+  approvalStatus?: string;
   search?: string;
   page?: number;
   pageSize?: number;
   sortBy?: "workDate" | "hours" | "employeeName" | "projectName" | "createdAt";
   sortDirection?: "asc" | "desc";
+}
+
+export type TimesheetDayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export interface WeeklyTimesheetDay {
+  key: TimesheetDayKey;
+  date: string;
+  label: string;
+}
+
+export interface WeeklyTimesheetRow {
+  rowGroupId: string;
+  clientId: string | null;
+  clientName: string;
+  projectId: string;
+  projectName: string;
+  workCategory: string;
+  billable: boolean;
+  notes: string;
+  holidayOrWeekendReason: string;
+  hours: Record<TimesheetDayKey, number>;
+}
+
+export interface WeeklyTimesheetTotals extends Record<TimesheetDayKey, number> {
+  weeklyTotal: number;
+  billableTotal: number;
+  nonBillableTotal: number;
+}
+
+export interface WeeklyTimesheetResponse {
+  employeeId: string;
+  employeeName: string;
+  weekStart: string;
+  weekEnd: string;
+  status: "not-started" | "draft" | "submitted" | "approved" | "rejected";
+  showWeekend: boolean;
+  days: WeeklyTimesheetDay[];
+  rows: WeeklyTimesheetRow[];
+  totals: WeeklyTimesheetTotals;
+}
+
+export interface SaveWeeklyTimesheetRowInput {
+  rowGroupId?: string | null;
+  clientId?: string | null;
+  projectId: string;
+  workCategory: string;
+  billable: boolean;
+  notes: string;
+  holidayOrWeekendReason: string;
+  hours: Partial<Record<TimesheetDayKey, number>>;
+}
+
+export interface SaveWeeklyTimesheetInput {
+  employeeId: string;
+  weekStart: string;
+  status: "draft" | "submitted";
+  showWeekend: boolean;
+  rows: SaveWeeklyTimesheetRowInput[];
+}
+
+export interface TimesheetListFilters {
+  employeeId?: string;
+  clientId?: string;
+  projectId?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+  billable?: boolean;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ProjectAssignment {
+  id: string;
+  projectId: string;
+  employeeId: string;
+  employeeName: string;
+  employeeEmail: string;
+  employeeTitle: string;
+  employeeRegion: string;
+  roleOnProject: string;
+  plannedHours: number | null;
+  billRate: number | null;
+  costRate: number | null;
+  allocationPercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectAssignmentInput {
+  projectId: string;
+  employeeId: string;
+  roleOnProject: string;
+  plannedHours: number | null;
+  billRate: number | null;
+  costRate: number | null;
+  allocationPercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  active: boolean;
+}
+
+export interface ProjectAssignmentBulkInput {
+  projectId: string;
+  employeeIds: string[];
+  roleOnProject: string;
+  plannedHours: number | null;
+  billRate: number | null;
+  costRate: number | null;
+  allocationPercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  active: boolean;
+}
+
+export interface TimeTrackingDashboard {
+  totalHoursThisWeek: number;
+  totalHoursThisMonth: number;
+  billableHoursThisMonth: number;
+  nonBillableHoursThisMonth: number;
+  activeProjectsWithTime: number;
+  projectsAtRisk: number;
+  totalSoldAmount: number | null;
+  estimatedActualCost: number | null;
+  estimatedProfit: number | null;
+  averageMarginPercent: number | null;
+  topProjectsByHours: Array<{ label: string; value: number; projectId: string | null }>;
+  topEmployeesByHours: Array<{ label: string; value: number; employeeId: string | null }>;
+  recentEntries: TimeEntry[];
+}
+
+export interface TimeTrackingProjectRow {
+  projectId: string;
+  projectName: string;
+  clientId: string | null;
+  clientName: string;
+  projectManager: string;
+  projectStatus: string;
+  projectStartDate: string | null;
+  projectEndDate: string | null;
+  plannedLoeHours: number | null;
+  actualLoeHours: number;
+  remainingLoeHours: number | null;
+  loeVarianceHours: number | null;
+  loeUsedPercent: number | null;
+  soldAmount: number | null;
+  plannedCost: number | null;
+  actualCost: number | null;
+  profit: number | null;
+  marginPercent: number | null;
+  profitabilityStatus: "Great" | "Healthy" | "At Risk" | "Unprofitable" | "Unknown";
+  assignedEmployeeCount: number;
+  assignedEmployeesPreview: Array<{ employeeId: string; employeeName: string }>;
+}
+
+export interface TimeTrackingProjectDetail extends TimeTrackingProjectRow {
+  project: Project;
+  assignments: ProjectAssignment[];
+  timeEntries: TimeEntry[];
+  hoursByEmployee: Array<{ label: string; value: number; employeeId?: string | null }>;
+  hoursByWeek: Array<{ label: string; value: number }>;
+  hoursByCategory: Array<{ label: string; value: number }>;
+}
+
+export interface TimeTrackingProjectFilters {
+  clientId?: string;
+  projectManager?: string;
+  status?: string;
+  profitabilityStatus?: string;
+  startDate?: string;
+  endDate?: string;
+  lastFiveYearsOnly?: boolean;
+  search?: string;
 }
 
 export interface PaginatedTimeEntries {

@@ -338,26 +338,29 @@ If you want one Azure App Service deployment, you can build the client separatel
 
 ## Time Tracking Module
 
-The app includes a new `Time Tracking` module at `/time-tracking`.
+The app includes a weekly `Time Tracking` module at `/time-tracking`.
 
 ### What it uses
 
 - Employees come from the existing `employees` table.
 - Clients come from the existing `clients` table.
 - Projects come from the existing `projects` table.
-- Time entries are stored in the new `time_entries` table.
+- Time entries are stored in the normalized `time_entries` table.
+- The weekly sheet UI groups entries by `timesheet_week_start` and `row_group_id`.
 
 ### Key API routes
 
-- `GET /api/time-entries`
-- `POST /api/time-entries`
-- `GET /api/time-entries/:id`
-- `PUT /api/time-entries/:id`
-- `DELETE /api/time-entries/:id`
-- `GET /api/time-entries/summary`
-- `GET /api/time-entries/project-options`
-- `GET /api/time-entries/employee-options`
-- `GET /api/time-entries/export`
+- `GET /api/timesheets/week`
+- `POST /api/timesheets/week/save`
+- `POST /api/timesheets/week/submit`
+- `POST /api/timesheets/week/copy-previous`
+- `GET /api/timesheets`
+- `GET /api/timesheets/options/employees`
+- `GET /api/timesheets/options/clients`
+- `GET /api/timesheets/options/projects`
+- `GET /api/timesheets/export`
+
+Legacy `time-entries` endpoints still exist for normalized row-level access and future reporting, but the main UI now uses the weekly timesheet routes.
 
 ### Demo and setup scripts
 
@@ -373,13 +376,19 @@ Mark a small recent set of projects as eligible for timesheet demos:
 npm run db:seed:timesheet-demo-projects --workspace server
 ```
 
-There is also an alias:
+Seed weekly demo timesheets that match the Excel-style UI:
 
 ```bash
 npm run db:seed:timesheet-demo --workspace server
 ```
 
-Seed sample time entries for the current week/month:
+Seed sample demo projects for timesheet selection:
+
+```bash
+npm run db:seed:timesheet-demo-projects --workspace server
+```
+
+There is also a row-level seed alias for legacy testing:
 
 ```bash
 npm run db:seed:time-entries-demo --workspace server
@@ -395,13 +404,16 @@ DATA_PROVIDER=postgres npm start --workspace server
 
 Then test:
 
-- `GET /api/time-entries/project-options`
-- `GET /api/time-entries/employee-options`
-- `GET /api/time-entries`
-- `GET /api/time-entries/summary`
+- `GET /api/timesheets/week?employeeId=...&weekStart=...`
+- `POST /api/timesheets/week/save`
+- `POST /api/timesheets/week/submit`
+- `GET /api/timesheets`
+- `GET /api/timesheets/export?employeeId=...&weekStart=...`
 
 ### Important behavior
 
 - The project picker only shows projects that are recent or active-ish for the last 5 years.
 - Demo scripts never run automatically on startup.
+- Weekly saves only rebuild the selected employee and selected week.
+- Each visible weekly row maps to one or more normalized `time_entries` rows under a shared `row_group_id`.
 - Partial `PUT` updates are safe and only modify fields that are actually sent.

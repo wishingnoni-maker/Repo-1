@@ -5,17 +5,20 @@ import type { EmployeeRepository } from "./EmployeeRepository.js";
 import type { ClientRepository } from "./ClientRepository.js";
 import type { ProjectRepository } from "./ProjectRepository.js";
 import type { TimeEntryRepository } from "./TimeEntryRepository.js";
+import type { ProjectAssignmentRepository } from "./ProjectAssignmentRepository.js";
 import { getDbPool, hasDatabaseUrl, isPostgresProviderEnabled } from "../db/pool.js";
 import { resolveServerDataPath } from "../utils/paths.js";
 import { JsonEmployeeRepository } from "./JsonEmployeeRepository.js";
 import { JsonClientRepository } from "./JsonClientRepository.js";
 import { JsonProjectRepository } from "./JsonProjectRepository.js";
 import { JsonTimeEntryRepository } from "./JsonTimeEntryRepository.js";
+import { JsonProjectAssignmentRepository } from "./JsonProjectAssignmentRepository.js";
 import { SqlEmployeeRepository } from "./SqlEmployeeRepository.js";
 import { PostgresEmployeeRepository } from "./postgresEmployeeRepository.js";
 import { PostgresClientRepository } from "./postgresClientRepository.js";
 import { PostgresProjectRepository } from "./postgresProjectRepository.js";
 import { PostgresTimeEntryRepository } from "./postgresTimeEntryRepository.js";
+import { PostgresProjectAssignmentRepository } from "./postgresProjectAssignmentRepository.js";
 
 const sql = sqlPkg as any;
 
@@ -109,4 +112,15 @@ export const createTimeEntryRepository = (): TimeEntryRepository => {
   }
 
   return new JsonTimeEntryRepository(resolveServerDataPath("time-entries.json"));
+};
+
+export const createProjectAssignmentRepository = (): ProjectAssignmentRepository => {
+  if (isPostgresProviderEnabled()) {
+    if (!hasDatabaseUrl()) {
+      throw new Error("DATA_PROVIDER=postgres requires DATABASE_URL to be configured.");
+    }
+    return new PostgresProjectAssignmentRepository(getDbPool());
+  }
+
+  return new JsonProjectAssignmentRepository(resolveServerDataPath("project-assignments.json"));
 };

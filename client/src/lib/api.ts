@@ -21,7 +21,16 @@ import type {
   TimeEntryFilters,
   TimeEntryListResponse,
   TimeEntryProjectOption,
-  TimeEntrySummary
+  TimeEntrySummary,
+  TimesheetClientOption,
+  TimesheetEmployeeOption,
+  WeeklyTimesheet,
+  SaveWeeklyTimesheetInput,
+  ProjectAssignment,
+  TimeTrackingDashboard,
+  TimeTrackingProjectDetail,
+  TimeTrackingProjectFilters,
+  TimeTrackingProjectRow
 } from "../types";
 
 const API_BASE =
@@ -31,7 +40,7 @@ const API_BASE =
 const buildQuery = (params: object) => {
   const searchParams = new URLSearchParams();
   Object.entries(params as Record<string, string | number | boolean | undefined>).forEach(([key, value]) => {
-    if (value !== undefined && value !== "" && value !== false) {
+    if (value !== undefined && value !== "") {
       searchParams.set(key, String(value));
     }
   });
@@ -163,6 +172,83 @@ export const api = {
     request<TimeEntrySummary>(`/time-entries/summary?${buildQuery(filters)}`),
   getTimeEntryProjectOptions: () => request<TimeEntryProjectOption[]>("/time-entries/project-options"),
   getTimeEntryEmployeeOptions: () => request<TimeEntryEmployeeOption[]>("/time-entries/employee-options"),
+
+  getTimeTrackingDashboard: () => request<TimeTrackingDashboard>("/time-tracking/dashboard"),
+  getTimeTrackingProjects: (filters: TimeTrackingProjectFilters = {}) =>
+    request<TimeTrackingProjectRow[]>(`/time-tracking/projects?${buildQuery(filters)}`),
+  getTimeTrackingProject: (projectId: string) =>
+    request<TimeTrackingProjectDetail>(`/time-tracking/projects/${projectId}`),
+  getTimeTrackingProjectOptions: () => request<TimeEntryProjectOption[]>("/time-tracking/project-options"),
+  getTimeTrackingEmployeeOptions: () => request<TimeEntryEmployeeOption[]>("/time-tracking/employee-options"),
+  getTimesheetWeek: (employeeId: string, weekStart: string) =>
+    request<WeeklyTimesheet>(`/timesheets/week?${buildQuery({ employeeId, weekStart })}`),
+  saveTimesheetWeek: (payload: SaveWeeklyTimesheetInput) =>
+    request<WeeklyTimesheet>("/timesheets/week/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  submitTimesheetWeek: (employeeId: string, weekStart: string) =>
+    request<WeeklyTimesheet>("/timesheets/week/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId, weekStart })
+    }),
+  copyPreviousTimesheetWeek: (employeeId: string, targetWeekStart: string) =>
+    request<WeeklyTimesheet>("/timesheets/week/copy-previous", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ employeeId, targetWeekStart })
+    }),
+  getTimesheets: (params: {
+    employeeId?: string;
+    clientId?: string;
+    projectId?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    billable?: boolean;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }) => request<TimeEntryListResponse>(`/timesheets?${buildQuery(params)}`),
+  getTimesheetEmployeeOptions: () => request<TimesheetEmployeeOption[]>("/timesheets/options/employees"),
+  getTimesheetClientOptions: () => request<TimesheetClientOption[]>("/timesheets/options/clients"),
+  getTimesheetProjectOptions: (params?: { clientId?: string; search?: string; recentOnly?: boolean }) =>
+    request<TimeEntryProjectOption[]>(`/timesheets/options/projects?${buildQuery(params ?? {})}`),
+  getProjectAssignments: (projectId?: string) =>
+    request<ProjectAssignment[]>(`/project-assignments${projectId ? `?${buildQuery({ projectId })}` : ""}`),
+  createProjectAssignment: (payload: Partial<ProjectAssignment>) =>
+    request<ProjectAssignment>("/project-assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  createProjectAssignmentsBulk: (payload: {
+    projectId: string;
+    employeeIds: string[];
+    roleOnProject: string;
+    plannedHours: number | null;
+    billRate: number | null;
+    costRate: number | null;
+    allocationPercent: number | null;
+    startDate: string | null;
+    endDate: string | null;
+    active: boolean;
+  }) =>
+    request<ProjectAssignment[]>("/project-assignments/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  updateProjectAssignment: (id: string, payload: Partial<ProjectAssignment>) =>
+    request<ProjectAssignment>(`/project-assignments/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
+  deleteProjectAssignment: (id: string) =>
+    request<void>(`/project-assignments/${id}`, { method: "DELETE" }),
 
   getDashboard: () => request<DashboardSummary>("/dashboard/summary"),
   getDataQuality: () => request<DataQualitySummary>("/data-quality"),

@@ -22,10 +22,16 @@ const mapCreatedEntry = (input: TimeEntryInput): TimeEntry => {
     projectStatus: "",
     projectManager: "",
     workDate: input.workDate,
+    timesheetWeekStart: input.timesheetWeekStart,
+    rowGroupId: input.rowGroupId,
     hours: input.hours,
     workCategory: input.workCategory,
     billable: input.billable,
+    approvalStatus: input.approvalStatus,
+    locked: input.locked,
+    source: input.source,
     notes: input.notes,
+    holidayReason: input.holidayReason,
     createdAt: timestamp,
     updatedAt: timestamp
   };

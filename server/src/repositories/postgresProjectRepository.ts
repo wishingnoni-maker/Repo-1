@@ -32,6 +32,11 @@ type ProjectRow = {
   project_sold_by: string | null;
   number_of_resources: string | number | null;
   number_of_work_weeks: string | number | null;
+  planned_loe_hours: string | number | null;
+  sold_amount: string | number | null;
+  blended_bill_rate: string | number | null;
+  blended_cost_rate: string | number | null;
+  profitability_notes: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -65,6 +70,11 @@ const mapProjectRow = (row: ProjectRow): Project => ({
   projectSoldBy: row.project_sold_by ?? "",
   numberOfResources: toNullableNumber(row.number_of_resources),
   numberOfWorkWeeks: toNullableNumber(row.number_of_work_weeks),
+  plannedLoeHours: toNullableNumber(row.planned_loe_hours),
+  soldAmount: toNullableNumber(row.sold_amount),
+  blendedBillRate: toNullableNumber(row.blended_bill_rate),
+  blendedCostRate: toNullableNumber(row.blended_cost_rate),
+  profitabilityNotes: row.profitability_notes ?? "",
   createdAt: toIsoString(row.created_at),
   updatedAt: toIsoString(row.updated_at)
 });
@@ -98,6 +108,11 @@ export class PostgresProjectRepository implements ProjectRepository {
         project_sold_by,
         number_of_resources,
         number_of_work_weeks,
+        planned_loe_hours,
+        sold_amount,
+        blended_bill_rate,
+        blended_cost_rate,
+        profitability_notes,
         created_at,
         updated_at
       FROM projects
@@ -135,10 +150,15 @@ export class PostgresProjectRepository implements ProjectRepository {
               project_sold_by,
               number_of_resources,
               number_of_work_weeks,
+              planned_loe_hours,
+              sold_amount,
+              blended_bill_rate,
+              blended_cost_rate,
+              profitability_notes,
               created_at,
               updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
           `,
           [
             record.id,
@@ -159,6 +179,11 @@ export class PostgresProjectRepository implements ProjectRepository {
             record.projectSoldBy,
             record.numberOfResources,
             record.numberOfWorkWeeks,
+            record.plannedLoeHours,
+            record.soldAmount,
+            record.blendedBillRate,
+            record.blendedCostRate,
+            record.profitabilityNotes,
             record.createdAt,
             record.updatedAt
           ]
@@ -212,6 +237,11 @@ export class PostgresProjectRepository implements ProjectRepository {
           project_sold_by,
           number_of_resources,
           number_of_work_weeks,
+          planned_loe_hours,
+          sold_amount,
+          blended_bill_rate,
+          blended_cost_rate,
+          profitability_notes,
           created_at,
           updated_at
         FROM projects
@@ -251,10 +281,15 @@ export class PostgresProjectRepository implements ProjectRepository {
           project_sold_by,
           number_of_resources,
           number_of_work_weeks,
+          planned_loe_hours,
+          sold_amount,
+          blended_bill_rate,
+          blended_cost_rate,
+          profitability_notes,
           created_at,
           updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
         RETURNING
           id,
           project_name,
@@ -274,6 +309,11 @@ export class PostgresProjectRepository implements ProjectRepository {
           project_sold_by,
           number_of_resources,
           number_of_work_weeks,
+          planned_loe_hours,
+          sold_amount,
+          blended_bill_rate,
+          blended_cost_rate,
+          profitability_notes,
           created_at,
           updated_at
       `,
@@ -296,6 +336,11 @@ export class PostgresProjectRepository implements ProjectRepository {
         created.projectSoldBy,
         created.numberOfResources,
         created.numberOfWorkWeeks,
+        created.plannedLoeHours,
+        created.soldAmount,
+        created.blendedBillRate,
+        created.blendedCostRate,
+        created.profitabilityNotes,
         created.createdAt,
         created.updatedAt
       ]
@@ -331,7 +376,12 @@ export class PostgresProjectRepository implements ProjectRepository {
           project_sold_by = $16,
           number_of_resources = $17,
           number_of_work_weeks = $18,
-          updated_at = $19
+          planned_loe_hours = $19,
+          sold_amount = $20,
+          blended_bill_rate = $21,
+          blended_cost_rate = $22,
+          profitability_notes = $23,
+          updated_at = $24
         WHERE id = $1
         RETURNING
           id,
@@ -352,6 +402,11 @@ export class PostgresProjectRepository implements ProjectRepository {
           project_sold_by,
           number_of_resources,
           number_of_work_weeks,
+          planned_loe_hours,
+          sold_amount,
+          blended_bill_rate,
+          blended_cost_rate,
+          profitability_notes,
           created_at,
           updated_at
       `,
@@ -374,6 +429,11 @@ export class PostgresProjectRepository implements ProjectRepository {
         updated.projectSoldBy,
         updated.numberOfResources,
         updated.numberOfWorkWeeks,
+        updated.plannedLoeHours,
+        updated.soldAmount,
+        updated.blendedBillRate,
+        updated.blendedCostRate,
+        updated.profitabilityNotes,
         updated.updatedAt
       ]
     );

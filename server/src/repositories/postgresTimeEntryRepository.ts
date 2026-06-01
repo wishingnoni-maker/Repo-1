@@ -20,10 +20,16 @@ type TimeEntryRow = {
   project_status: string | null;
   project_manager: string | null;
   work_date: string;
+  timesheet_week_start: string | null;
+  row_group_id: string | null;
   hours: string | number;
   work_category: string;
   billable: boolean;
+  approval_status: "draft" | "submitted" | "approved" | "rejected";
+  locked: boolean;
+  source: string;
   notes: string | null;
+  holiday_reason: string | null;
   created_at: Date | string;
   updated_at: Date | string;
 };
@@ -42,10 +48,16 @@ const mapTimeEntryRow = (row: TimeEntryRow): TimeEntry => ({
   projectStatus: row.project_status ?? "",
   projectManager: row.project_manager ?? "",
   workDate: row.work_date,
+  timesheetWeekStart: row.timesheet_week_start,
+  rowGroupId: row.row_group_id,
   hours: Number(row.hours),
   workCategory: row.work_category,
   billable: row.billable,
+  approvalStatus: row.approval_status,
+  locked: row.locked,
+  source: row.source,
   notes: row.notes ?? "",
+  holidayReason: row.holiday_reason ?? "",
   createdAt: toIsoString(row.created_at),
   updatedAt: toIsoString(row.updated_at)
 });
@@ -63,10 +75,16 @@ const joinedSelect = `
     p.project_status,
     p.project_manager,
     te.work_date::text AS work_date,
+    te.timesheet_week_start::text AS timesheet_week_start,
+    te.row_group_id::text AS row_group_id,
     te.hours,
     te.work_category,
     te.billable,
+    te.approval_status,
+    te.locked,
+    te.source,
     te.notes,
+    te.holiday_reason,
     te.created_at,
     te.updated_at
   FROM time_entries te
@@ -76,9 +94,27 @@ const joinedSelect = `
 `;
 
 export class PostgresTimeEntryRepository implements TimeEntryRepository {
+  private schemaReady: Promise<void> | null = null;
+
   constructor(private readonly pool: Pool) {}
 
+  private async ensureSchema() {
+    if (!this.schemaReady) {
+      this.schemaReady = (async () => {
+        await this.pool.query(`
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS timesheet_week_start DATE NULL;
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS row_group_id UUID NULL;
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS holiday_reason TEXT;
+          CREATE INDEX IF NOT EXISTS idx_time_entries_timesheet_week_start ON time_entries(timesheet_week_start);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_row_group_id ON time_entries(row_group_id);
+        `);
+      })();
+    }
+    await this.schemaReady;
+  }
+
   async getAll(): Promise<TimeEntry[]> {
+    await this.ensureSchema();
     const result = await this.pool.query<TimeEntryRow>(`
       ${joinedSelect}
       ORDER BY te.work_date DESC, te.created_at DESC
@@ -108,6 +144,7 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
   }
 
   async getById(id: string): Promise<TimeEntry | null> {
+    await this.ensureSchema();
     const result = await this.pool.query<TimeEntryRow>(
       `
         ${joinedSelect}
@@ -120,6 +157,7 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
   }
 
   async create(input: TimeEntryInput): Promise<TimeEntry> {
+    await this.ensureSchema();
     const result = await this.pool.query(
       `
         INSERT INTO time_entries (
@@ -127,12 +165,18 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
           project_id,
           client_id,
           work_date,
+          timesheet_week_start,
+          row_group_id,
           hours,
           work_category,
           billable,
-          notes
+          approval_status,
+          locked,
+          source,
+          notes,
+          holiday_reason
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         RETURNING id
       `,
       [
@@ -140,10 +184,16 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
         input.projectId,
         input.clientId,
         input.workDate,
+        input.timesheetWeekStart,
+        input.rowGroupId,
         input.hours,
         input.workCategory,
         input.billable,
-        input.notes
+        input.approvalStatus,
+        input.locked,
+        input.source,
+        input.notes,
+        input.holidayReason
       ]
     );
 
@@ -151,6 +201,7 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
   }
 
   async update(id: string, input: Partial<TimeEntryInput>): Promise<TimeEntry | null> {
+    await this.ensureSchema();
     const existing = await this.getById(id);
     if (!existing) {
       return null;
@@ -161,10 +212,17 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
       projectId: input.projectId ?? existing.projectId,
       clientId: input.clientId !== undefined ? input.clientId : existing.clientId,
       workDate: input.workDate ?? existing.workDate,
+      timesheetWeekStart:
+        input.timesheetWeekStart !== undefined ? input.timesheetWeekStart : existing.timesheetWeekStart,
+      rowGroupId: input.rowGroupId !== undefined ? input.rowGroupId : existing.rowGroupId,
       hours: input.hours ?? existing.hours,
       workCategory: input.workCategory ?? existing.workCategory,
       billable: input.billable ?? existing.billable,
-      notes: input.notes ?? existing.notes
+      approvalStatus: input.approvalStatus ?? existing.approvalStatus,
+      locked: input.locked ?? existing.locked,
+      source: input.source ?? existing.source,
+      notes: input.notes ?? existing.notes,
+      holidayReason: input.holidayReason ?? existing.holidayReason
     };
 
     await this.pool.query(
@@ -175,10 +233,16 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
           project_id = $3,
           client_id = $4,
           work_date = $5,
-          hours = $6,
-          work_category = $7,
-          billable = $8,
-          notes = $9
+          timesheet_week_start = $6,
+          row_group_id = $7,
+          hours = $8,
+          work_category = $9,
+          billable = $10,
+          approval_status = $11,
+          locked = $12,
+          source = $13,
+          notes = $14,
+          holiday_reason = $15
         WHERE id = $1
       `,
       [
@@ -187,10 +251,16 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
         merged.projectId,
         merged.clientId,
         merged.workDate,
+        merged.timesheetWeekStart,
+        merged.rowGroupId,
         merged.hours,
         merged.workCategory,
         merged.billable,
-        merged.notes
+        merged.approvalStatus,
+        merged.locked,
+        merged.source,
+        merged.notes,
+        merged.holidayReason
       ]
     );
 
@@ -198,6 +268,7 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    await this.ensureSchema();
     const result = await this.pool.query("DELETE FROM time_entries WHERE id = $1", [id]);
     return (result.rowCount ?? 0) > 0;
   }
