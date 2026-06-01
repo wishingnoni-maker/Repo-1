@@ -85,9 +85,29 @@ const sortProjects = (projects: Project[]) =>
   [...projects].sort((a, b) => a.projectName.localeCompare(b.projectName));
 
 export class PostgresProjectRepository implements ProjectRepository {
+  private schemaReady: Promise<void> | null = null;
+
   constructor(private readonly pool: Pool) {}
 
+  private async ensureSchema() {
+    if (!this.schemaReady) {
+      this.schemaReady = (async () => {
+        await this.pool.query(`
+          ALTER TABLE projects ADD COLUMN IF NOT EXISTS planned_loe_hours NUMERIC NULL;
+          ALTER TABLE projects ADD COLUMN IF NOT EXISTS sold_amount NUMERIC NULL;
+          ALTER TABLE projects ADD COLUMN IF NOT EXISTS blended_bill_rate NUMERIC NULL;
+          ALTER TABLE projects ADD COLUMN IF NOT EXISTS blended_cost_rate NUMERIC NULL;
+          ALTER TABLE projects ADD COLUMN IF NOT EXISTS profitability_notes TEXT;
+          CREATE INDEX IF NOT EXISTS idx_projects_project_start_date ON projects(project_start_date);
+          CREATE INDEX IF NOT EXISTS idx_projects_project_end_date ON projects(project_end_date);
+        `);
+      })();
+    }
+    await this.schemaReady;
+  }
+
   async getAll(): Promise<Project[]> {
+    await this.ensureSchema();
     const result = await this.pool.query<ProjectRow>(`
       SELECT
         id,
@@ -123,6 +143,7 @@ export class PostgresProjectRepository implements ProjectRepository {
   }
 
   async saveAll(projects: Project[]): Promise<void> {
+    await this.ensureSchema();
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -216,6 +237,7 @@ export class PostgresProjectRepository implements ProjectRepository {
   }
 
   async getById(id: string): Promise<Project | null> {
+    await this.ensureSchema();
     const result = await this.pool.query<ProjectRow>(
       `
         SELECT
@@ -259,6 +281,7 @@ export class PostgresProjectRepository implements ProjectRepository {
   }
 
   async create(input: ProjectInput): Promise<Project> {
+    await this.ensureSchema();
     const created = createProjectRecord(input);
     const result = await this.pool.query<ProjectRow>(
       `
@@ -350,6 +373,7 @@ export class PostgresProjectRepository implements ProjectRepository {
   }
 
   async update(id: string, input: Partial<ProjectInput>): Promise<Project | null> {
+    await this.ensureSchema();
     const existing = await this.getById(id);
     if (!existing) {
       return null;
