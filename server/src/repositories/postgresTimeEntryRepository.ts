@@ -102,9 +102,13 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
     if (!this.schemaReady) {
       this.schemaReady = (async () => {
         await this.pool.query(`
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'submitted';
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT FALSE;
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS timesheet_week_start DATE NULL;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS row_group_id UUID NULL;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS holiday_reason TEXT;
+          CREATE INDEX IF NOT EXISTS idx_time_entries_approval_status ON time_entries(approval_status);
           CREATE INDEX IF NOT EXISTS idx_time_entries_timesheet_week_start ON time_entries(timesheet_week_start);
           CREATE INDEX IF NOT EXISTS idx_time_entries_row_group_id ON time_entries(row_group_id);
         `);
