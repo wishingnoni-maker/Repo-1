@@ -102,12 +102,43 @@ export class PostgresTimeEntryRepository implements TimeEntryRepository {
     if (!this.schemaReady) {
       this.schemaReady = (async () => {
         await this.pool.query(`
+          CREATE TABLE IF NOT EXISTS time_entries (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            client_id UUID NULL REFERENCES clients(id) ON DELETE SET NULL,
+            work_date DATE NOT NULL,
+            timesheet_week_start DATE NULL,
+            row_group_id UUID NULL,
+            hours NUMERIC(5,2) NOT NULL CHECK (hours > 0 AND hours <= 24),
+            work_category TEXT NOT NULL DEFAULT 'Client Work',
+            billable BOOLEAN NOT NULL DEFAULT TRUE,
+            approval_status TEXT NOT NULL DEFAULT 'submitted',
+            locked BOOLEAN NOT NULL DEFAULT FALSE,
+            source TEXT NOT NULL DEFAULT 'manual',
+            notes TEXT,
+            holiday_reason TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS client_id UUID NULL;
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS work_category TEXT NOT NULL DEFAULT 'Client Work';
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS billable BOOLEAN NOT NULL DEFAULT TRUE;
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS notes TEXT;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'submitted';
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS locked BOOLEAN NOT NULL DEFAULT FALSE;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+          ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS timesheet_week_start DATE NULL;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS row_group_id UUID NULL;
           ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS holiday_reason TEXT;
+          CREATE INDEX IF NOT EXISTS idx_time_entries_employee_id ON time_entries(employee_id);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_project_id ON time_entries(project_id);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_client_id ON time_entries(client_id);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_work_date ON time_entries(work_date);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_billable ON time_entries(billable);
+          CREATE INDEX IF NOT EXISTS idx_time_entries_created_at ON time_entries(created_at);
           CREATE INDEX IF NOT EXISTS idx_time_entries_approval_status ON time_entries(approval_status);
           CREATE INDEX IF NOT EXISTS idx_time_entries_timesheet_week_start ON time_entries(timesheet_week_start);
           CREATE INDEX IF NOT EXISTS idx_time_entries_row_group_id ON time_entries(row_group_id);
