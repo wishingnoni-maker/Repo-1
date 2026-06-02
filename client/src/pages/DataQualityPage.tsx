@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ClientForm } from "../components/ClientForm";
 import { EmployeeForm } from "../components/EmployeeForm";
+import { EmptyState } from "../components/EmptyState";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
 import { ProjectForm } from "../components/ProjectForm";
 import { StatCard } from "../components/StatCard";
 import { api } from "../lib/api";
@@ -195,16 +197,16 @@ export function DataQualityPage() {
 
   return (
     <div className="page-grid">
-      <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Data quality</h3>
-            <p>Review issues by module, group them by type, and jump directly into edits to resolve them.</p>
-          </div>
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Data Quality"
+        subtitle="Review missing or inconsistent employee, client, and project data."
+        actions={
           <a className="button button--primary" href={currentTab.exportHref}>
             Export CSV
           </a>
-        </div>
+        }
+      >
         <div className="tabbar">
           {(["employees", "clients", "projects"] as TabKey[]).map((tab) => (
             <button
@@ -217,7 +219,7 @@ export function DataQualityPage() {
             </button>
           ))}
         </div>
-      </section>
+      </PageHeader>
 
       <section className="stat-grid">
         <StatCard label="Total issues" value={kpis.totalIssues} tone="accent" />
@@ -236,8 +238,8 @@ export function DataQualityPage() {
           </div>
         </div>
 
-        {loading ? <div className="empty-state">Loading data quality issues...</div> : null}
-        {error ? <div className="error-text">{error}</div> : null}
+        {loading ? <EmptyState title="Loading data quality..." description="Scanning employees, clients, and projects for issues." tone="loading" compact /> : null}
+        {error ? <EmptyState title="Unable to load data quality." description={error} tone="error" compact /> : null}
 
         {!loading && !error ? (
           <div className="issue-groups">

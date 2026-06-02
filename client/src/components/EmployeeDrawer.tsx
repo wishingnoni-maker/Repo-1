@@ -6,9 +6,10 @@ import type { EmployeeDetailResponse } from "../types";
 interface EmployeeDrawerProps {
   detail: EmployeeDetailResponse | null;
   onClose: () => void;
+  embedded?: boolean;
 }
 
-export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
+export function EmployeeDrawer({ detail, onClose, embedded = false }: EmployeeDrawerProps) {
   if (!detail) {
     return null;
   }
@@ -17,18 +18,24 @@ export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
   const renderValue = (value: unknown) =>
     isMissing(value) ? <span className="missing-badge">Missing</span> : <strong>{safeString(value)}</strong>;
 
-  return (
-    <aside className="drawer">
-      <div className="drawer__header">
-        <div>
-          <p className="page-kicker">Employee profile</p>
-          <h3>{employee.fullName}</h3>
-          <p>{employee.title || "Title missing"}</p>
+  const content = (
+    <>
+      {!embedded ? (
+        <div className="drawer__header">
+          <div>
+            <p className="page-kicker">Employee profile</p>
+            <h3>{employee.fullName}</h3>
+            <p>{employee.title || "Title missing"}</p>
+          </div>
+          <button className="button" onClick={onClose} type="button">
+            Close
+          </button>
         </div>
-        <button className="button" onClick={onClose} type="button">
-          Close
-        </button>
-      </div>
+      ) : (
+        <div className="drawer__section">
+          <p className="page-kicker">Employee profile</p>
+        </div>
+      )}
 
       <div className="profile-card">
         <div>
@@ -94,6 +101,16 @@ export function EmployeeDrawer({ detail, onClose }: EmployeeDrawerProps) {
       <a className="button button--ghost" href={api.exportUrl("/export/employees", { search: employee.email })}>
         Export this record via filtered CSV
       </a>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <aside className="drawer">
+      {content}
     </aside>
   );
 }

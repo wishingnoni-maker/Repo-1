@@ -391,6 +391,20 @@ export interface DashboardSummary {
   missingDataWarnings: DataQualityIssue[];
 }
 
+export interface SystemStatusResponse {
+  ok: boolean;
+  dataProvider: "json" | "postgres" | "sql";
+  hasDatabaseUrl: boolean;
+  databaseSsl: boolean;
+  postgresConnected: boolean | null;
+  postgresError: string | null;
+  counts: {
+    employees: number | null;
+    clients: number | null;
+    projects: number | null;
+  };
+}
+
 export interface OrgGroup {
   supervisorName: string;
   teamSize: number;

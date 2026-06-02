@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/PageHeader";
+import { useToast } from "../components/ToastProvider";
 import { api } from "../lib/api";
 import type { ImportSummary } from "../types";
 
@@ -30,6 +33,7 @@ interface ImportPageProps {
 }
 
 export function ImportPage({ onImportSuccess }: ImportPageProps) {
+  const { showToast } = useToast();
   const [importType, setImportType] = useState<ImportType>("employees");
   const [file, setFile] = useState<File | null>(null);
   const [replaceExisting, setReplaceExisting] = useState(false);
@@ -74,8 +78,15 @@ export function ImportPage({ onImportSuccess }: ImportPageProps) {
             : await api.importProjects(file, replaceExisting);
       setSummary(result);
       onImportSuccess();
+      showToast({
+        tone: "success",
+        title: `${importOptions.find((option) => option.key === importType)?.label ?? "Data"} import complete`,
+        description: `${result.importedRows} imported, ${result.updatedRows} updated, ${result.skippedRows} skipped.`
+      });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Import failed.");
+      const message = caught instanceof Error ? caught.message : "Import failed.";
+      setError(message);
+      showToast({ tone: "error", title: "Import failed", description: message });
     } finally {
       setLoading(false);
     }
@@ -83,14 +94,11 @@ export function ImportPage({ onImportSuccess }: ImportPageProps) {
 
   return (
     <div className="page-grid">
-      <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>{copy.title}</h3>
-            <p>Import Workforce Hub data modules without changing the working employee, client, or project dashboards.</p>
-            <p>{copy.helper}</p>
-          </div>
-        </div>
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Import Excel"
+        subtitle="Upload employees, clients, or projects without disrupting the current app experience."
+      >
         <div className="tabbar">
           {importOptions.map((option) => (
             <button
@@ -108,6 +116,9 @@ export function ImportPage({ onImportSuccess }: ImportPageProps) {
             </button>
           ))}
         </div>
+        <p className="helper-text">{copy.helper}</p>
+      </PageHeader>
+      <section className="panel">
         <div className="form-grid">
           <label>
             <span>{importType === "employees" ? "Employee file" : importType === "clients" ? "Client file" : "Project file"}</span>
@@ -144,7 +155,7 @@ export function ImportPage({ onImportSuccess }: ImportPageProps) {
           <button className="button button--primary" disabled={!file || loading} onClick={runImport} type="button">
             {loading ? "Importing..." : `Import ${importType}`}
           </button>
-          {error ? <p className="error-text">{error}</p> : null}
+          {error ? <EmptyState title="Import problem" description={error} tone="error" compact /> : null}
         </div>
       </section>
 

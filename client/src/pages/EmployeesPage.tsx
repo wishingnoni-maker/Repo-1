@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DetailDrawer } from "../components/DetailDrawer";
+import { EmptyState } from "../components/EmptyState";
 import { EmployeeDrawer } from "../components/EmployeeDrawer";
 import { EmployeeForm } from "../components/EmployeeForm";
+import { MissingDataChips } from "../components/MissingDataChips";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
+import { useToast } from "../components/ToastProvider";
 import { api } from "../lib/api";
 import { formatDate, getTenureLabel, uniqueValues } from "../lib/format";
 import { isMissing, safeLower, safeString } from "../lib/safe";
@@ -28,6 +33,7 @@ interface EmployeesPageProps {
 }
 
 export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps) {
+  const { showToast } = useToast();
   const [filters, setFilters] = useState<EmployeeFilters>(defaultFilters);
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -150,82 +156,91 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
 
   return (
     <div className="page-grid">
-      <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Employee directory</h3>
-            <p>Search, filter, sort, and manage the workforce roster.</p>
-          </div>
-        </div>
-        <div className="filters">
-          <input
-            placeholder="Search by name, email, title, supervisor, region..."
-            value={filters.search}
-            onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
-          />
-          {[
-            ["region", "regions", "All regions"],
-            ["country", "countries", "All countries"],
-            ["title", "titles", "All titles"],
-            ["supervisor", "supervisors", "All supervisors"],
-            ["titleCode", "titleCodes", "All title codes"],
-            ["hireYear", "hireYears", "All hire years"]
-          ].map(([field, optionKey, label]) => (
-            <select
-              key={field}
-              value={filters[field as keyof EmployeeFilters] as string}
-              onChange={(event) => setFilters((current) => ({ ...current, page: 1, [field]: event.target.value }))}
-            >
-              <option value="">{label}</option>
-              {filterOptions[optionKey as keyof typeof filterOptions].map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          ))}
-          <select
-            value={filters.sortBy}
-            onChange={(event) =>
-              setFilters((current) => ({ ...current, sortBy: event.target.value as EmployeeFilters["sortBy"] }))
-            }
-          >
-            <option value="name">Sort: name</option>
-            <option value="hireDate">Sort: hire date</option>
-            <option value="region">Sort: region</option>
-            <option value="title">Sort: title</option>
-            <option value="tenure">Sort: tenure</option>
-          </select>
-          <select
-            value={filters.sortDirection}
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                sortDirection: event.target.value as EmployeeFilters["sortDirection"]
-              }))
-            }
-          >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
-        </div>
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Employees"
+        subtitle="Review employee records, supervisors, regions, titles, and hire dates."
+        actions={
+          <>
+            <button className="button" onClick={() => setFilters(defaultFilters)} type="button">
+              Clear filters
+            </button>
+            <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
+              New employee
+            </button>
+          </>
+        }
+      />
 
-        <div className="table-actions">
-          <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
-            New employee
-          </button>
-          <button
-            className="button"
-            disabled={!selectedIds.length}
-            onClick={() => setDeleteTarget(allEmployees.find((employee) => employee.id === selectedIds[0]) ?? null)}
-            type="button"
-          >
-            Bulk delete ({selectedIds.length})
-          </button>
+      <section className="panel">
+        <div className="table-toolbar">
+          <div className="table-toolbar__filters filters">
+            <input
+              placeholder="Search by name, email, title, supervisor, region..."
+              value={filters.search}
+              onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
+            />
+            {[
+              ["region", "regions", "All regions"],
+              ["country", "countries", "All countries"],
+              ["title", "titles", "All titles"],
+              ["supervisor", "supervisors", "All supervisors"],
+              ["titleCode", "titleCodes", "All title codes"],
+              ["hireYear", "hireYears", "All hire years"]
+            ].map(([field, optionKey, label]) => (
+              <select
+                key={field}
+                value={filters[field as keyof EmployeeFilters] as string}
+                onChange={(event) => setFilters((current) => ({ ...current, page: 1, [field]: event.target.value }))}
+              >
+                <option value="">{label}</option>
+                {filterOptions[optionKey as keyof typeof filterOptions].map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            ))}
+            <select
+              value={filters.sortBy}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, sortBy: event.target.value as EmployeeFilters["sortBy"] }))
+              }
+            >
+              <option value="name">Sort: name</option>
+              <option value="hireDate">Sort: hire date</option>
+              <option value="region">Sort: region</option>
+              <option value="title">Sort: title</option>
+              <option value="tenure">Sort: tenure</option>
+            </select>
+            <select
+              value={filters.sortDirection}
+              onChange={(event) =>
+                setFilters((current) => ({
+                  ...current,
+                  sortDirection: event.target.value as EmployeeFilters["sortDirection"]
+                }))
+              }
+            >
+              <option value="asc">Ascending</option>
+              <option value="desc">Descending</option>
+            </select>
+          </div>
+
+          <div className="table-toolbar__actions">
+            <button
+              className="button"
+              disabled={!selectedIds.length}
+              onClick={() => setDeleteTarget(allEmployees.find((employee) => employee.id === selectedIds[0]) ?? null)}
+              type="button"
+            >
+              Bulk delete ({selectedIds.length})
+            </button>
+          </div>
         </div>
 
         <div className="table-wrap">
-          <table>
+          <table className="data-table">
             <thead>
               <tr>
                 <th />
@@ -257,23 +272,41 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
                       type="checkbox"
                     />
                   </td>
-                  <td>{safeString(employee.fullName)}</td>
-                  <td>{safeString(employee.email) || <span className="missing-badge">Missing</span>}</td>
-                  <td>{safeString(employee.title) || <span className="missing-badge">Missing</span>}</td>
+                  <td>
+                    <div className="stack-cell">
+                      <strong>{safeString(employee.fullName)}</strong>
+                      <MissingDataChips
+                        items={[
+                          ...(isMissing(employee.country) ? ["Missing Country"] : []),
+                          ...(isMissing(employee.employeeRegion) ? ["Missing Region"] : []),
+                          ...(isMissing(employee.supervisorName) ? ["Missing Supervisor"] : []),
+                          ...(isMissing(employee.titleCode) ? ["Missing Title Code"] : [])
+                        ]}
+                      />
+                    </div>
+                  </td>
+                  <td className="cell-truncate" title={safeString(employee.email)}>
+                    {safeString(employee.email) || <span className="missing-badge">Missing</span>}
+                  </td>
+                  <td className="cell-truncate" title={safeString(employee.title)}>
+                    {safeString(employee.title) || <span className="missing-badge">Missing</span>}
+                  </td>
                   <td>{safeString(employee.employeeRegion) || <span className="missing-badge">Missing</span>}</td>
-                  <td>{safeString(employee.supervisorName) || <span className="missing-badge">Missing</span>}</td>
+                  <td className="cell-truncate" title={safeString(employee.supervisorName)}>
+                    {safeString(employee.supervisorName) || <span className="missing-badge">Missing</span>}
+                  </td>
                   <td>{safeString(employee.country) || <span className="missing-badge">Missing</span>}</td>
                   <td>{safeString(employee.titleCode) || <span className="missing-badge">Missing</span>}</td>
                   <td>{formatDate(employee.hireDate)}</td>
                   <td>{getTenureLabel(employee)}</td>
                   <td className="row-actions">
-                    <button className="button button--ghost" onClick={() => openEmployeeDetail(employee)} type="button">
+                    <button className="button button--ghost action-button--compact" onClick={() => openEmployeeDetail(employee)} type="button">
                       View
                     </button>
-                    <button className="button" onClick={() => setEditTarget(employee)} type="button">
+                    <button className="button action-button--compact" onClick={() => setEditTarget(employee)} type="button">
                       Edit
                     </button>
-                    <button className="button button--danger" onClick={() => setDeleteTarget(employee)} type="button">
+                    <button className="button button--danger action-button--compact" onClick={() => setDeleteTarget(employee)} type="button">
                       Delete
                     </button>
                   </td>
@@ -281,7 +314,13 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
               ))}
             </tbody>
           </table>
-          {!pagedEmployees.length && !loading ? <div className="empty-state">No employees match the current filters.</div> : null}
+          {!pagedEmployees.length && !loading ? (
+            <EmptyState
+              title="No employees match the current filters."
+              description="Try clearing one or more filters to broaden the workforce view."
+              compact
+            />
+          ) : null}
         </div>
 
         <div className="pagination">
@@ -307,8 +346,8 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
             </button>
           </div>
         </div>
-        {loading ? <div className="empty-state">Loading employees...</div> : null}
-        {error ? <div className="error-text">{error}</div> : null}
+        {loading ? <EmptyState title="Loading employees..." description="Pulling the latest workforce roster." tone="loading" compact /> : null}
+        {error ? <EmptyState title="Unable to load employees." description={error} tone="error" compact /> : null}
       </section>
 
       <section className="panel">
@@ -343,6 +382,11 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
               );
               setBulkFields({ employeeRegion: "", supervisorName: "", country: "", title: "" });
               onDataChange();
+              showToast({
+                tone: "success",
+                title: "Employees updated",
+                description: `${selectedIds.length} employee records were updated.`
+              });
             }}
             type="button"
           >
@@ -362,10 +406,12 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
             if (editTarget?.id) {
               const updated = await api.updateEmployee(editTarget.id, payload);
               applyEmployeeChange(updated);
+              showToast({ tone: "success", title: "Employee updated", description: `${updated.fullName} was saved.` });
             } else {
               const created = await api.createEmployee(payload);
               setAllEmployees((prev) => [created, ...prev]);
               onDataChange();
+              showToast({ tone: "success", title: "Employee created", description: `${created.fullName} was added.` });
             }
             setEditTarget(null);
           }}
@@ -373,9 +419,14 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
         />
       </Modal>
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Employee details" width="wide">
-        <EmployeeDrawer detail={detail} onClose={() => setDetail(null)} />
-      </Modal>
+      <DetailDrawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.employee.fullName ?? "Employee details"}
+        subtitle={detail?.employee.title || "Employee profile"}
+      >
+        <EmployeeDrawer detail={detail} onClose={() => setDetail(null)} embedded />
+      </DetailDrawer>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -385,10 +436,20 @@ export function EmployeesPage({ refreshToken, onDataChange }: EmployeesPageProps
             await api.bulkDelete(selectedIds);
             setAllEmployees((prev) => prev.filter((employee) => !selectedIds.includes(employee.id)));
             setSelectedIds([]);
+            showToast({
+              tone: "success",
+              title: "Employees deleted",
+              description: `${selectedIds.length} employee records were removed.`
+            });
           } else if (deleteTarget) {
             await api.deleteEmployee(deleteTarget.id);
             setAllEmployees((prev) => prev.filter((employee) => employee.id !== deleteTarget.id));
             setSelectedIds((prev) => prev.filter((id) => id !== deleteTarget.id));
+            showToast({
+              tone: "success",
+              title: "Employee deleted",
+              description: `${deleteTarget.fullName} was removed.`
+            });
           }
           onDataChange();
         }}

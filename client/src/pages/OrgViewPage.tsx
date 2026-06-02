@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { DetailDrawer } from "../components/DetailDrawer";
 import { EmployeeDrawer } from "../components/EmployeeDrawer";
+import { EmptyState } from "../components/EmptyState";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 import { api } from "../lib/api";
 import { uniqueValues } from "../lib/format";
@@ -121,8 +124,6 @@ export function OrgViewPage() {
       if (status.state === "invalid") invalidCount += 1;
     });
 
-    console.log("Missing supervisors:", missingCount + invalidCount);
-
     return {
       totalSupervisors: validGroups.length,
       missingCount,
@@ -149,6 +150,12 @@ export function OrgViewPage() {
 
   return (
     <div className="page-grid">
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Org View"
+        subtitle="Review supervisors, direct reports, and unresolved reporting gaps."
+      />
+
       <section className="stat-grid">
         <StatCard label="Total supervisors" value={counts.totalSupervisors} tone="accent" />
         <StatCard label="Employees missing supervisor" value={counts.missingCount} tone="warn" />
@@ -156,12 +163,6 @@ export function OrgViewPage() {
       </section>
 
       <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Organization view</h3>
-            <p>Shows the reporting structure from the current employee dataset and isolates only true missing or unmatched supervisors.</p>
-          </div>
-        </div>
         <div className="filters">
           <select
             value={filters.region}
@@ -297,17 +298,22 @@ export function OrgViewPage() {
             );
           })}
           {!missingOrInvalidEmployees.length && !loading ? (
-            <li className="empty-state">No missing or invalid supervisors in the current filtered set.</li>
+            <li><EmptyState title="No missing or invalid supervisors." description="The current filtered employee set has complete reporting lines." compact /></li>
           ) : null}
         </ul>
       </section>
 
-      {loading ? <div className="empty-state">Loading org chart...</div> : null}
-      {error ? <div className="error-text">{error}</div> : null}
+      {loading ? <EmptyState title="Loading org chart..." description="Reviewing the current reporting structure." tone="loading" /> : null}
+      {error ? <EmptyState title="Unable to load org view." description={error} tone="error" /> : null}
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Employee details" width="wide">
-        <EmployeeDrawer detail={detail} onClose={() => setDetail(null)} />
-      </Modal>
+      <DetailDrawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.employee.fullName ?? "Employee details"}
+        subtitle={detail?.employee.title || "Employee profile"}
+      >
+        <EmployeeDrawer detail={detail} onClose={() => setDetail(null)} embedded />
+      </DetailDrawer>
 
       <Modal open={Boolean(assignTarget)} onClose={() => setAssignTarget(null)} title="Assign supervisor">
         {assignTarget ? (

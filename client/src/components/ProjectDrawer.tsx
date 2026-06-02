@@ -4,9 +4,10 @@ import type { ProjectDetailResponse } from "../types";
 interface ProjectDrawerProps {
   detail: ProjectDetailResponse | null;
   onClose: () => void;
+  embedded?: boolean;
 }
 
-export function ProjectDrawer({ detail, onClose }: ProjectDrawerProps) {
+export function ProjectDrawer({ detail, onClose, embedded = false }: ProjectDrawerProps) {
   if (!detail) {
     return null;
   }
@@ -18,18 +19,24 @@ export function ProjectDrawer({ detail, onClose }: ProjectDrawerProps) {
   const renderMoney = (value: unknown) =>
     isMissing(value) ? <span className="missing-badge">Missing</span> : <strong>{formatMoney(value, project.projectCurrency)}</strong>;
 
-  return (
-    <aside className="drawer">
-      <div className="drawer__header">
-        <div>
-          <p className="page-kicker">Project detail</p>
-          <h3>{project.projectName}</h3>
-          <p>{project.projectStatus || "Status missing"}</p>
+  const content = (
+    <>
+      {!embedded ? (
+        <div className="drawer__header">
+          <div>
+            <p className="page-kicker">Project detail</p>
+            <h3>{project.projectName}</h3>
+            <p>{project.projectStatus || "Status missing"}</p>
+          </div>
+          <button className="button" onClick={onClose} type="button">
+            Close
+          </button>
         </div>
-        <button className="button" onClick={onClose} type="button">
-          Close
-        </button>
-      </div>
+      ) : (
+        <div className="drawer__section">
+          <p className="page-kicker">Project detail</p>
+        </div>
+      )}
       <div className="profile-card">
         <div><span>Estimated Hours</span>{renderNumber(project.projectEstimatedHrs)}</div>
         <div><span>Currency</span>{renderValue(project.projectCurrency)}</div>
@@ -47,6 +54,16 @@ export function ProjectDrawer({ detail, onClose }: ProjectDrawerProps) {
         <div><span>Work Weeks</span>{renderNumber(project.numberOfWorkWeeks)}</div>
         <div className="profile-card__wide"><span>Description</span>{renderValue(project.projectDescription)}</div>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <aside className="drawer">
+      {content}
     </aside>
   );
 }

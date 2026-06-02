@@ -4,12 +4,13 @@ import type { ClientDetailResponse } from "../types";
 interface ClientDrawerProps {
   detail: ClientDetailResponse | null;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 const MissingBadge = ({ show, text }: { show: boolean; text: string }) =>
   show ? <span className="missing-badge">{text}</span> : null;
 
-export function ClientDrawer({ detail, onClose }: ClientDrawerProps) {
+export function ClientDrawer({ detail, onClose, embedded = false }: ClientDrawerProps) {
   if (!detail) {
     return null;
   }
@@ -18,18 +19,24 @@ export function ClientDrawer({ detail, onClose }: ClientDrawerProps) {
   const renderValue = (value: unknown) =>
     isMissing(value) ? <span className="missing-badge">Missing</span> : <strong>{safeString(value)}</strong>;
 
-  return (
-    <aside className="drawer">
-      <div className="drawer__header">
-        <div>
-          <p className="page-kicker">Client profile</p>
-          <h3>{client.clientName}</h3>
-          <p>{client.clientStatus || "Status missing"}</p>
+  const content = (
+    <>
+      {!embedded ? (
+        <div className="drawer__header">
+          <div>
+            <p className="page-kicker">Client profile</p>
+            <h3>{client.clientName}</h3>
+            <p>{client.clientStatus || "Status missing"}</p>
+          </div>
+          <button className="button" onClick={onClose} type="button">
+            Close
+          </button>
         </div>
-        <button className="button" onClick={onClose} type="button">
-          Close
-        </button>
-      </div>
+      ) : (
+        <div className="drawer__section">
+          <p className="page-kicker">Client profile</p>
+        </div>
+      )}
       <div className="badge-row">
         <MissingBadge show={!client.clientContact} text="Missing contact" />
         <MissingBadge show={!client.clientDescription} text="Missing description" />
@@ -53,6 +60,16 @@ export function ClientDrawer({ detail, onClose }: ClientDrawerProps) {
           {!relatedProjects.length ? <li>No related projects found.</li> : null}
         </ul>
       </section>
+    </>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <aside className="drawer">
+      {content}
     </aside>
   );
 }

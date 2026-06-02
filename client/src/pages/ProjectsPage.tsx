@@ -2,10 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartCard } from "../components/ChartCard";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DetailDrawer } from "../components/DetailDrawer";
+import { EmptyState } from "../components/EmptyState";
+import { MissingDataChips } from "../components/MissingDataChips";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
 import { ProjectDrawer } from "../components/ProjectDrawer";
 import { ProjectForm } from "../components/ProjectForm";
 import { StatCard } from "../components/StatCard";
+import { StatusBadge } from "../components/StatusBadge";
+import { useToast } from "../components/ToastProvider";
 import { api } from "../lib/api";
 import { cleanNumber, formatMoney, isMissing, safeDateLabel, safeLower, safeString } from "../lib/safe";
 import type { Project, ProjectDetailResponse, ProjectFilters } from "../types";
@@ -143,6 +149,7 @@ function ProjectsPageContent({
   refreshToken: number;
   onDataChange: () => void;
 }) {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<ProjectTab>("Overview");
   const [filters, setFilters] = useState<ProjectFilters>(defaultFilters);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -168,14 +175,6 @@ function ProjectsPageContent({
         const normalized = result.data.map((row, index) =>
           normalizeProject(row as unknown as Record<string, unknown>, index)
         );
-        if (import.meta.env.DEV) {
-          console.log("normalizeProject preview", normalized.slice(0, 3).map((project) => ({
-            projectName: project.projectName,
-            budgetCost: project.budgetCost,
-            expenseBudget: project.expenseBudgetProjectCurrency,
-            region: project.projectRegion
-          })));
-        }
         setAllProjects(normalized);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Projects failed to load."))
@@ -293,13 +292,28 @@ function ProjectsPageContent({
 
   return (
     <div className="page-grid">
-      <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Projects</h3>
-            <p>Search, review, and manage the project portfolio without overloading a single table.</p>
-          </div>
-        </div>
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Projects"
+        subtitle="Track project status, managers, budgets, timelines, and operational data."
+        actions={
+          <>
+            <button
+              className="button"
+              onClick={() => {
+                setFilters(defaultFilters);
+                resetTabPages(setTabPages);
+              }}
+              type="button"
+            >
+              Clear filters
+            </button>
+            <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
+              New project
+            </button>
+          </>
+        }
+      >
         <div className="tabbar">
           {tabs.map((tab) => (
             <button
@@ -312,7 +326,7 @@ function ProjectsPageContent({
             </button>
           ))}
         </div>
-      </section>
+      </PageHeader>
 
       {activeTab === "Overview" ? (
         <>
@@ -380,7 +394,7 @@ function ProjectsPageContent({
 
       {activeTab !== "Overview" ? (
         <section className="panel">
-          <div className="filters">
+          <div className="table-toolbar__filters filters">
             <input
               placeholder="Search by project name"
               value={filters.search}
@@ -542,9 +556,6 @@ function ProjectsPageContent({
               <option value="50">50 per page</option>
               <option value="100">100 per page</option>
             </select>
-            <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
-              New project
-            </button>
           </div>
         </section>
       ) : null}
@@ -605,12 +616,17 @@ function ProjectsPageContent({
         />
       ) : null}
 
-      {loading ? <div className="empty-state">Loading projects...</div> : null}
-      {error ? <div className="error-text">{error}</div> : null}
+      {loading ? <EmptyState title="Loading projects..." description="Pulling the latest portfolio data." tone="loading" /> : null}
+      {error ? <EmptyState title="Unable to load projects." description={error} tone="error" /> : null}
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Project details" width="wide">
-        <ProjectDrawer detail={detail} onClose={() => setDetail(null)} />
-      </Modal>
+      <DetailDrawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.project.projectName ?? "Project details"}
+        subtitle={detail?.project.projectStatus || "Project profile"}
+      >
+        <ProjectDrawer detail={detail} onClose={() => setDetail(null)} embedded />
+      </DetailDrawer>
 
       <Modal
         open={Boolean(editTarget)}
@@ -630,12 +646,14 @@ function ProjectsPageContent({
               if (detail?.project.id === updated.id) {
                 setDetail({ project: updated });
               }
+              showToast({ tone: "success", title: "Project updated", description: `${updated.projectName} was saved.` });
             } else {
               const created = normalizeProject(
                 (await api.createProject(payload)) as unknown as Record<string, unknown>,
                 0
               );
               setAllProjects((prev) => [created, ...prev]);
+              showToast({ tone: "success", title: "Project created", description: `${created.projectName} was added.` });
             }
             setEditTarget(null);
             onDataChange();
@@ -655,6 +673,7 @@ function ProjectsPageContent({
             setDetail(null);
           }
           onDataChange();
+          showToast({ tone: "success", title: "Project deleted", description: `${deleteTarget.projectName} was removed.` });
         }}
         title="Delete project"
         message={`Are you sure you want to delete ${deleteTarget?.projectName ?? "this project"}?`}
@@ -687,7 +706,7 @@ function ProjectTable({
   return (
     <section className="panel">
       <div className="table-wrap">
-        <table>
+        <table className="data-table">
           <thead>
             {columns === "directory" ? (
               <tr>
@@ -746,40 +765,52 @@ function ProjectTable({
               <tr key={project.id}>
                 {columns === "directory" ? (
                   <>
-                    <td>{safeString(project.projectName) || "Unnamed project"}</td>
-                    <td>{renderMissing(project.projectStatus)}</td>
+                    <td>
+                      <div className="stack-cell">
+                        <strong>{safeString(project.projectName) || "Unnamed project"}</strong>
+                        <MissingDataChips
+                          items={[
+                            ...(isMissing(project.poNumber) ? ["Missing PO"] : []),
+                            ...(isMissing(project.projectManager) ? ["Missing Manager"] : []),
+                            ...(isMissing(project.projectEndDate) ? ["Missing End Date"] : []),
+                            ...(project.budgetCost == null ? ["Missing Budget"] : [])
+                          ]}
+                        />
+                      </div>
+                    </td>
+                    <td><StatusBadge status={project.projectStatus} /></td>
                     <td>{renderMissing(project.projectRegion)}</td>
-                    <td>{renderMissing(project.projectManager)}</td>
+                    <td className="cell-truncate" title={safeString(project.projectManager)}>{renderMissing(project.projectManager)}</td>
                     <td>{safeDateLabel(project.projectStartDate)}</td>
                     <td>{safeDateLabel(project.projectEndDate)}</td>
                     <td>{renderMissing(project.poNumber)}</td>
-                    <td>{project.budgetCost == null ? <span className="missing-badge">Missing</span> : formatMoney(project.budgetCost, project.projectCurrency)}</td>
+                    <td className="cell-number">{project.budgetCost == null ? <span className="missing-badge">Missing</span> : formatMoney(project.budgetCost, project.projectCurrency)}</td>
                   </>
                 ) : null}
                 {columns === "financials" ? (
                   <>
-                    <td>{safeString(project.projectName) || "Unnamed project"}</td>
+                    <td className="cell-truncate" title={safeString(project.projectName)}>{safeString(project.projectName) || "Unnamed project"}</td>
                     <td>{renderMissing(project.projectCurrency)}</td>
-                    <td>{renderNullableNumber(project.projectEstimatedHrs)}</td>
-                    <td>{renderNullableNumber(project.budgetHours)}</td>
-                    <td>{project.budgetCost == null ? <span className="missing-badge">Missing</span> : formatMoney(project.budgetCost, project.projectCurrency)}</td>
-                    <td>
+                    <td className="cell-number">{renderNullableNumber(project.projectEstimatedHrs)}</td>
+                    <td className="cell-number">{renderNullableNumber(project.budgetHours)}</td>
+                    <td className="cell-number">{project.budgetCost == null ? <span className="missing-badge">Missing</span> : formatMoney(project.budgetCost, project.projectCurrency)}</td>
+                    <td className="cell-number">
                       {project.expenseBudgetProjectCurrency == null ? (
                         <span className="missing-badge">Missing</span>
                       ) : (
                         formatMoney(project.expenseBudgetProjectCurrency, project.projectCurrency)
                       )}
                     </td>
-                    <td>{renderNullableNumber(project.numberOfResources)}</td>
-                    <td>{renderNullableNumber(project.numberOfWorkWeeks)}</td>
+                    <td className="cell-number">{renderNullableNumber(project.numberOfResources)}</td>
+                    <td className="cell-number">{renderNullableNumber(project.numberOfWorkWeeks)}</td>
                   </>
                 ) : null}
                 {columns === "metadata" ? (
                   <>
-                    <td>{safeString(project.projectName) || "Unnamed project"}</td>
-                    <td>{renderMissing(project.projectManagerEmail)}</td>
+                    <td className="cell-truncate" title={safeString(project.projectName)}>{safeString(project.projectName) || "Unnamed project"}</td>
+                    <td className="cell-truncate" title={safeString(project.projectManagerEmail)}>{renderMissing(project.projectManagerEmail)}</td>
                     <td>{renderMissing(project.projectSoldBy)}</td>
-                    <td>{renderMissing(project.projectDescription)}</td>
+                    <td className="cell-truncate" title={safeString(project.projectDescription)}>{renderMissing(project.projectDescription)}</td>
                     <td>{safeDateLabel(project.projectStartDate)}</td>
                     <td>{safeDateLabel(project.projectEndDate)}</td>
                     <td>{renderMissing(project.poNumber)}</td>
@@ -804,13 +835,13 @@ function ProjectTable({
                   </>
                 ) : null}
                 <td className="row-actions">
-                  <button className="button button--ghost" onClick={() => onView(project)} type="button">
+                  <button className="button button--ghost action-button--compact" onClick={() => onView(project)} type="button">
                     View
                   </button>
-                  <button className="button" onClick={() => onEdit(project)} type="button">
+                  <button className="button action-button--compact" onClick={() => onEdit(project)} type="button">
                     Edit
                   </button>
-                  <button className="button button--danger" onClick={() => onDelete(project)} type="button">
+                  <button className="button button--danger action-button--compact" onClick={() => onDelete(project)} type="button">
                     Delete
                   </button>
                 </td>
@@ -819,7 +850,13 @@ function ProjectTable({
           </tbody>
         </table>
       </div>
-      {!rows.length ? <div className="empty-state">No projects match this tab and filter combination.</div> : null}
+      {!rows.length ? (
+        <EmptyState
+          title="No projects match this tab and filter combination."
+          description="Clear filters or switch tabs to broaden the results."
+          compact
+        />
+      ) : null}
       <div className="pagination">
         <span>
           Page {page} of {totalPages} • {total} projects

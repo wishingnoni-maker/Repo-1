@@ -2,11 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { ClientDrawer } from "../components/ClientDrawer";
 import { ClientForm } from "../components/ClientForm";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DetailDrawer } from "../components/DetailDrawer";
+import { EmptyState } from "../components/EmptyState";
+import { MissingDataChips } from "../components/MissingDataChips";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
+import { useToast } from "../components/ToastProvider";
 import { api } from "../lib/api";
 import { uniqueValues } from "../lib/format";
 import { isMissing, safeLower, safeString } from "../lib/safe";
+import { StatusBadge } from "../components/StatusBadge";
 import type { Client, ClientDetailResponse, ClientFilters, Project } from "../types";
 
 const defaultFilters: ClientFilters = {
@@ -28,6 +34,7 @@ export function ClientsPage({
   refreshToken: number;
   onDataChange: () => void;
 }) {
+  const { showToast } = useToast();
   const [filters, setFilters] = useState<ClientFilters>(defaultFilters);
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -127,6 +134,22 @@ export function ClientsPage({
 
   return (
     <div className="page-grid">
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Clients"
+        subtitle="Maintain client records, managers, contacts, and descriptions."
+        actions={
+          <>
+            <button className="button" onClick={() => setFilters(defaultFilters)} type="button">
+              Clear filters
+            </button>
+            <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
+              New client
+            </button>
+          </>
+        }
+      />
+
       <section className="stat-grid">
         <StatCard label="Total clients" value={summary.total} tone="accent" />
         <StatCard label="Active clients" value={summary.active} />
@@ -137,92 +160,88 @@ export function ClientsPage({
       </section>
 
       <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Clients</h3>
-            <p>Manage client metadata, fill gaps, and connect clients to project work.</p>
+        <div className="table-toolbar">
+          <div className="table-toolbar__filters filters">
+            <input
+              placeholder="Search by client name, contact, manager, description"
+              value={filters.search}
+              onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
+            />
+            <select
+              value={filters.clientStatus}
+              onChange={(event) => setFilters((current) => ({ ...current, page: 1, clientStatus: event.target.value }))}
+            >
+              <option value="">All statuses</option>
+              {filterOptions.statuses.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filters.clientInvoiceCurrency}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, page: 1, clientInvoiceCurrency: event.target.value }))
+              }
+            >
+              <option value="">All currencies</option>
+              {filterOptions.currencies.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filters.clientManager}
+              onChange={(event) => setFilters((current) => ({ ...current, page: 1, clientManager: event.target.value }))}
+            >
+              <option value="">All managers</option>
+              {filterOptions.managers.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+            <label className="toggle">
+              <input
+                checked={filters.missingContact}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, page: 1, missingContact: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Missing contact</span>
+            </label>
+            <label className="toggle">
+              <input
+                checked={filters.missingDescription}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, page: 1, missingDescription: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Missing description</span>
+            </label>
+            <label className="toggle">
+              <input
+                checked={filters.missingManager}
+                onChange={(event) =>
+                  setFilters((current) => ({ ...current, page: 1, missingManager: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>Missing manager</span>
+            </label>
+          </div>
+
+          <div className="table-toolbar__actions">
+            <a className="button" href={api.exportUrl("/export/clients")}>
+              Export clients
+            </a>
           </div>
         </div>
-        <div className="filters">
-          <input
-            placeholder="Search by client name, contact, manager, description"
-            value={filters.search}
-            onChange={(event) => setFilters((current) => ({ ...current, page: 1, search: event.target.value }))}
-          />
-          <select
-            value={filters.clientStatus}
-            onChange={(event) => setFilters((current) => ({ ...current, page: 1, clientStatus: event.target.value }))}
-          >
-            <option value="">All statuses</option>
-            {filterOptions.statuses.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filters.clientInvoiceCurrency}
-            onChange={(event) =>
-              setFilters((current) => ({ ...current, page: 1, clientInvoiceCurrency: event.target.value }))
-            }
-          >
-            <option value="">All currencies</option>
-            {filterOptions.currencies.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filters.clientManager}
-            onChange={(event) => setFilters((current) => ({ ...current, page: 1, clientManager: event.target.value }))}
-          >
-            <option value="">All managers</option>
-            {filterOptions.managers.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-          <label className="toggle">
-            <input
-              checked={filters.missingContact}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, missingContact: event.target.checked }))
-              }
-              type="checkbox"
-            />
-            <span>Missing contact</span>
-          </label>
-          <label className="toggle">
-            <input
-              checked={filters.missingDescription}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, missingDescription: event.target.checked }))
-              }
-              type="checkbox"
-            />
-            <span>Missing description</span>
-          </label>
-          <label className="toggle">
-            <input
-              checked={filters.missingManager}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, page: 1, missingManager: event.target.checked }))
-              }
-              type="checkbox"
-            />
-            <span>Missing manager</span>
-          </label>
-        </div>
-
-        <div className="table-actions">
-          <button className="button button--primary" onClick={() => setEditTarget({})} type="button">
-            New client
-          </button>
-        </div>
         <div className="table-wrap">
-          <table>
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Client Name</th>
@@ -237,24 +256,39 @@ export function ClientsPage({
             <tbody>
               {pagedClients.map((client) => (
                 <tr key={client.id}>
-                  <td>{safeString(client.clientName) || <span className="missing-badge">Missing</span>}</td>
-                  <td>{safeString(client.clientStatus) || <span className="missing-badge">Missing</span>}</td>
-                  <td>{safeString(client.clientInvoiceCurrency) || <span className="missing-badge">Missing</span>}</td>
-                  <td>{safeString(client.clientContact) || <span className="missing-badge">Missing contact</span>}</td>
-                  <td>{safeString(client.clientManager) || <span className="missing-badge">Missing manager</span>}</td>
                   <td>
+                    <div className="stack-cell">
+                      <strong>{safeString(client.clientName) || "Missing"}</strong>
+                      <MissingDataChips
+                        items={[
+                          ...(isMissing(client.clientManager) ? ["Missing Manager"] : []),
+                          ...(isMissing(client.clientContact) ? ["Missing Contact"] : []),
+                          ...(isMissing(client.clientDescription) ? ["Missing Description"] : [])
+                        ]}
+                      />
+                    </div>
+                  </td>
+                  <td><StatusBadge status={client.clientStatus} /></td>
+                  <td>{safeString(client.clientInvoiceCurrency) || <span className="missing-badge">Missing</span>}</td>
+                  <td className="cell-truncate" title={safeString(client.clientContact)}>
+                    {safeString(client.clientContact) || <span className="missing-badge">Missing contact</span>}
+                  </td>
+                  <td className="cell-truncate" title={safeString(client.clientManager)}>
+                    {safeString(client.clientManager) || <span className="missing-badge">Missing manager</span>}
+                  </td>
+                  <td className="cell-truncate" title={safeString(client.clientDescription)}>
                     {safeString(client.clientDescription)
                       ? `${safeString(client.clientDescription).slice(0, 80)}${safeString(client.clientDescription).length > 80 ? "..." : ""}`
                       : <span className="missing-badge">Missing description</span>}
                   </td>
                   <td className="row-actions">
-                    <button className="button button--ghost" onClick={() => openClientDetail(client)} type="button">
+                    <button className="button button--ghost action-button--compact" onClick={() => openClientDetail(client)} type="button">
                       View
                     </button>
-                    <button className="button" onClick={() => setEditTarget(client)} type="button">
+                    <button className="button action-button--compact" onClick={() => setEditTarget(client)} type="button">
                       Edit
                     </button>
-                    <button className="button button--danger" onClick={() => setDeleteTarget(client)} type="button">
+                    <button className="button button--danger action-button--compact" onClick={() => setDeleteTarget(client)} type="button">
                       Delete
                     </button>
                   </td>
@@ -263,7 +297,13 @@ export function ClientsPage({
             </tbody>
           </table>
         </div>
-        {!pagedClients.length && !loading ? <div className="empty-state">No clients match the current filters.</div> : null}
+        {!pagedClients.length && !loading ? (
+          <EmptyState
+            title="No clients match the current filters."
+            description="Clear one or more filters to broaden the client list."
+            compact
+          />
+        ) : null}
         <div className="pagination">
           <span>
             Page {currentPage} of {totalPages} • {filteredClients.length} clients
@@ -287,8 +327,8 @@ export function ClientsPage({
             </button>
           </div>
         </div>
-        {loading ? <div className="empty-state">Loading clients...</div> : null}
-        {error ? <div className="error-text">{error}</div> : null}
+        {loading ? <EmptyState title="Loading clients..." description="Pulling the client directory." tone="loading" compact /> : null}
+        {error ? <EmptyState title="Unable to load clients." description={error} tone="error" compact /> : null}
       </section>
 
       <Modal
@@ -302,10 +342,12 @@ export function ClientsPage({
             if (editTarget?.id) {
               const updated = await api.updateClient(editTarget.id, payload);
               applyClientChange(updated);
+              showToast({ tone: "success", title: "Client updated", description: `${updated.clientName} was saved.` });
             } else {
               const created = await api.createClient(payload);
               setAllClients((prev) => [created, ...prev]);
               onDataChange();
+              showToast({ tone: "success", title: "Client created", description: `${created.clientName} was added.` });
             }
             setEditTarget(null);
           }}
@@ -313,9 +355,14 @@ export function ClientsPage({
         />
       </Modal>
 
-      <Modal open={Boolean(detail)} onClose={() => setDetail(null)} title="Client details" width="wide">
-        <ClientDrawer detail={detail} onClose={() => setDetail(null)} />
-      </Modal>
+      <DetailDrawer
+        open={Boolean(detail)}
+        onClose={() => setDetail(null)}
+        title={detail?.client.clientName ?? "Client details"}
+        subtitle={detail?.client.clientStatus || "Client profile"}
+      >
+        <ClientDrawer detail={detail} onClose={() => setDetail(null)} embedded />
+      </DetailDrawer>
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
@@ -325,6 +372,7 @@ export function ClientsPage({
           await api.deleteClient(deleteTarget.id);
           setAllClients((prev) => prev.filter((client) => client.id !== deleteTarget.id));
           onDataChange();
+          showToast({ tone: "success", title: "Client deleted", description: `${deleteTarget.clientName} was removed.` });
         }}
         title="Delete client"
         message={`Are you sure you want to delete ${deleteTarget?.clientName ?? "this client"}?`}

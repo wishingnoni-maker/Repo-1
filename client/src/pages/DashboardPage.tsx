@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -16,6 +17,8 @@ import { api } from "../lib/api";
 import { formatDate, getTenureLabel } from "../lib/format";
 import type { DashboardSummary } from "../types";
 import { ChartCard } from "../components/ChartCard";
+import { EmptyState } from "../components/EmptyState";
+import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
 
 const PIE_COLORS = [
@@ -36,6 +39,7 @@ interface DashboardPageProps {
 }
 
 export function DashboardPage({ refreshToken }: DashboardPageProps) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState("");
 
@@ -51,11 +55,38 @@ export function DashboardPage({ refreshToken }: DashboardPageProps) {
   }, [refreshToken]);
 
   if (error) {
-    return <div className="error-text">{error}</div>;
+    return (
+      <div className="page-grid">
+        <PageHeader
+          eyebrow="Workforce operations"
+          title="Operations Dashboard"
+          subtitle="Monitor workforce, project, client, and data quality signals."
+        />
+        <EmptyState
+          title="Unable to load the dashboard."
+          description={error}
+          tone="error"
+          action={
+            <button className="button" onClick={() => window.location.reload()} type="button">
+              Retry
+            </button>
+          }
+        />
+      </div>
+    );
   }
 
   if (!summary) {
-    return <div className="empty-state">Loading dashboard...</div>;
+    return (
+      <div className="page-grid">
+        <PageHeader
+          eyebrow="Workforce operations"
+          title="Operations Dashboard"
+          subtitle="Monitor workforce, project, client, and data quality signals."
+        />
+        <EmptyState title="Loading dashboard..." description="Pulling the latest workforce and project signals." tone="loading" />
+      </div>
+    );
   }
 
   const countryData = summary.employeesByCountry.slice(0, 10);
@@ -63,16 +94,96 @@ export function DashboardPage({ refreshToken }: DashboardPageProps) {
 
   return (
     <div className="page-grid">
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Operations Dashboard"
+        subtitle="Monitor workforce, project, client, and data quality signals."
+        actions={
+          <>
+            <button className="button" onClick={() => navigate("/employees")} type="button">
+              Add employee
+            </button>
+            <button className="button" onClick={() => navigate("/clients")} type="button">
+              Add client
+            </button>
+            <button className="button button--primary" onClick={() => navigate("/time-tracking")} type="button">
+              Open weekly timesheet
+            </button>
+          </>
+        }
+      />
+
       <section className="stat-grid">
-        <StatCard label="Total employees" value={summary.totalEmployees} tone="accent" />
-        <StatCard label="Total clients" value={summary.totalClients} />
-        <StatCard label="Total projects" value={summary.totalProjects} />
-        <StatCard label="Active projects" value={summary.activeProjects} />
-        <StatCard label="Projects missing PO" value={summary.projectsMissingPoNumber} tone="warn" />
-        <StatCard label="Clients missing manager" value={summary.clientsMissingManager} tone="warn" />
+        <StatCard
+          label="Total employees"
+          value={summary.totalEmployees}
+          tone="accent"
+          onClick={() => navigate("/employees")}
+          hint="Open employee records"
+        />
+        <StatCard
+          label="Total clients"
+          value={summary.totalClients}
+          onClick={() => navigate("/clients")}
+          hint="Open client records"
+        />
+        <StatCard
+          label="Total projects"
+          value={summary.totalProjects}
+          onClick={() => navigate("/projects")}
+          hint="Open project portfolio"
+        />
+        <StatCard label="Active projects" value={summary.activeProjects} onClick={() => navigate("/projects")} hint="View active delivery work" />
+        <StatCard
+          label="Projects missing PO"
+          value={summary.projectsMissingPoNumber}
+          tone="warn"
+          onClick={() => navigate("/data-quality")}
+          hint="Review project gaps"
+        />
+        <StatCard
+          label="Clients missing manager"
+          value={summary.clientsMissingManager}
+          tone="warn"
+          onClick={() => navigate("/data-quality")}
+          hint="Review client gaps"
+        />
         <StatCard label="Regions tracked" value={summary.employeesByRegion.length} />
         <StatCard label="Countries tracked" value={summary.employeesByCountry.length} />
-        <StatCard label="Missing data warnings" value={summary.missingDataWarnings.length} tone="warn" />
+        <StatCard
+          label="Missing data warnings"
+          value={summary.missingDataWarnings.length}
+          tone="warn"
+          onClick={() => navigate("/data-quality")}
+          hint="Jump to data quality"
+        />
+      </section>
+
+      <section className="panel">
+        <div className="panel__header">
+          <div>
+            <h3>Quick actions</h3>
+            <p>Jump directly into the most common operational tasks.</p>
+          </div>
+        </div>
+        <div className="report-grid">
+          <button className="report-card" onClick={() => navigate("/employees")} type="button">
+            <strong>Add or review employees</strong>
+            <span>Open the employee directory and update workforce data.</span>
+          </button>
+          <button className="report-card" onClick={() => navigate("/clients")} type="button">
+            <strong>Maintain clients</strong>
+            <span>Review contacts, managers, and client descriptions.</span>
+          </button>
+          <button className="report-card" onClick={() => navigate("/projects")} type="button">
+            <strong>Review projects</strong>
+            <span>Track status, timelines, budgets, and missing metadata.</span>
+          </button>
+          <button className="report-card" onClick={() => navigate("/time-tracking")} type="button">
+            <strong>Open weekly timesheet</strong>
+            <span>Capture consultant hours by employee, client, and project.</span>
+          </button>
+        </div>
       </section>
 
       <ChartCard title="Employees by region" subtitle="Top workforce concentration">

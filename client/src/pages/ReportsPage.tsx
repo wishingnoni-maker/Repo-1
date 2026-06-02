@@ -1,15 +1,15 @@
 import { api } from "../lib/api";
+import { PageHeader } from "../components/PageHeader";
 
 export function ReportsPage() {
   return (
     <div className="page-grid">
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Reports / Export"
+        subtitle="Export workforce, client, project, and timesheet data."
+      />
       <section className="panel">
-        <div className="panel__header">
-          <div>
-            <h3>Reports and export</h3>
-            <p>Download employees, clients, projects, financials, and data-quality reports in CSV format.</p>
-          </div>
-        </div>
         <div className="report-grid">
           <a className="report-card" href={api.exportUrl("/export/employees")}><strong>All employees</strong><span>Complete workforce directory export</span></a>
           <a className="report-card" href={api.exportUrl("/export/clients")}><strong>All clients</strong><span>Client directory export</span></a>

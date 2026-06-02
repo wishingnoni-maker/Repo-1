@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyState } from "../components/EmptyState";
 import { Modal } from "../components/Modal";
+import { PageHeader } from "../components/PageHeader";
 import { StatCard } from "../components/StatCard";
+import { StatusBadge } from "../components/StatusBadge";
 import { TimeEntryDrawer } from "../components/TimeEntryDrawer";
+import { useToast } from "../components/ToastProvider";
 import { WeeklyTimesheetGrid } from "../components/WeeklyTimesheetGrid";
 import { api } from "../lib/api";
 import { formatDate } from "../lib/format";
@@ -124,6 +128,7 @@ interface TimeTrackingPageProps {
 }
 
 export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPageProps) {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<TimesheetTab>("Weekly Timesheet");
   const [employees, setEmployees] = useState<TimesheetEmployeeOption[]>([]);
   const [clients, setClients] = useState<TimesheetClientOption[]>([]);
@@ -449,7 +454,13 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
       setCurrentWeek(response);
       setRows(response.rows.length ? response.rows.map((row) => createEmptyRow(row)) : [createEmptyRow()]);
       setDirty(false);
-      setSuccess(status === "submitted" ? "Timesheet submitted." : "Timesheet saved.");
+      const message = status === "submitted" ? "Timesheet submitted." : "Timesheet saved.";
+      setSuccess(message);
+      showToast({
+        tone: "success",
+        title: status === "submitted" ? "Week submitted" : "Draft saved",
+        description: message
+      });
       onDataChange();
       if (activeTab === "Submitted Entries") {
         void loadSubmittedEntries();
@@ -479,6 +490,11 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
       setShowWeekend(response.showWeekend);
       setDirty(true);
       setSuccess("Previous week copied. Hours were reset to 0.");
+      showToast({
+        tone: "info",
+        title: "Previous week copied",
+        description: "Rows were copied into this week and hours were reset to zero."
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to copy the previous week.");
     } finally {
@@ -488,12 +504,12 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
 
   return (
     <div className="page-grid time-tracking-page">
-      <section className="panel time-tracking-header-card">
+      <PageHeader
+        eyebrow="Workforce operations"
+        title="Weekly Timesheet"
+        subtitle="Submit weekly project hours by employee, client, project, and work week."
+      >
         <div className="time-tracking-header-top">
-          <div>
-            <h3>Time Tracking</h3>
-            <p>Submit weekly project hours by employee, client, and project.</p>
-          </div>
           <div className="tabbar time-tracking-tabs">
             {tabs.map((tab) => (
               <button
@@ -566,9 +582,7 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
         <div className="badge-row">
           <span className="badge badge--info">{selectedEmployee?.fullName || "No employee selected"}</span>
           <span className="badge badge--neutral">{formatDate(weekStart)} to {formatDate(weekEnd)}</span>
-          <span className={`badge badge--${weekStatus === "submitted" || weekStatus === "approved" ? "success" : weekStatus === "draft" ? "warn" : "neutral"}`}>
-            {weekStatus}
-          </span>
+          <StatusBadge status={weekStatus} fallback="Not started" />
         </div>
 
         {weekendHoursHidden ? (
@@ -578,9 +592,9 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
           </div>
         ) : null}
 
-        {error ? <div className="error-text">{error}</div> : null}
+        {error ? <EmptyState title="Unable to update this week." description={error} tone="error" compact /> : null}
         {success ? <div className="helper-banner"><strong>Saved</strong><span>{success}</span></div> : null}
-      </section>
+      </PageHeader>
 
       {activeTab === "Weekly Timesheet" ? (
         <>
@@ -591,7 +605,9 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
             <StatCard label="Rows" value={rows.length} />
           </section>
           {loadingWeek ? (
-            <section className="panel"><div className="hint-box">Loading weekly timesheet…</div></section>
+            <section className="panel">
+              <EmptyState title="Loading weekly timesheet..." description="Pulling saved rows and totals for this week." tone="loading" compact />
+            </section>
           ) : (
             <WeeklyTimesheetGrid
               categories={categories}
@@ -622,7 +638,7 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
               <p>Review saved time rows across employees, clients, projects, and status.</p>
             </div>
           </div>
-          <div className="filters">
+          <div className="table-toolbar__filters filters">
             <label>
               <span>Employee</span>
               <select value={submittedFilters.employeeId} onChange={(event) => setSubmittedFilters((current) => ({ ...current, employeeId: event.target.value, page: 1 }))}>
@@ -682,7 +698,7 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
             </label>
           </div>
           <div className="table-wrap">
-            <table>
+            <table className="data-table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -705,15 +721,15 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
                     <td>{entry.clientName || "Unassigned"}</td>
                     <td>{entry.projectName}</td>
                     <td>{entry.workCategory}</td>
-                    <td>{entry.hours.toFixed(2)}</td>
+                    <td className="cell-number">{entry.hours.toFixed(2)}</td>
                     <td>{entry.billable ? "Yes" : "No"}</td>
-                    <td><span className={`status-pill status-pill--${entry.approvalStatus}`}>{entry.approvalStatus}</span></td>
-                    <td>{entry.notes || "No notes"}</td>
+                    <td><StatusBadge status={entry.approvalStatus} /></td>
+                    <td className="cell-truncate" title={entry.notes || "No notes"}>{entry.notes || "No notes"}</td>
                     <td>
                       <div className="row-actions">
-                        <button className="button" onClick={() => setViewEntry(entry)} type="button">View</button>
+                        <button className="button action-button--compact" onClick={() => setViewEntry(entry)} type="button">View</button>
                         <button
-                          className="button"
+                          className="button action-button--compact"
                           onClick={() => {
                             requestWeekChange({
                               employeeId: entry.employeeId,
@@ -778,7 +794,7 @@ export function TimeTrackingPage({ refreshToken, onDataChange }: TimeTrackingPag
                   {teamReviewRows.map((row) => (
                     <tr key={row.employeeId}>
                       <td>{row.employeeName}</td>
-                      <td><span className={`badge badge--${row.status === "submitted" || row.status === "approved" ? "success" : row.status === "draft" ? "warn" : "neutral"}`}>{row.status}</span></td>
+                      <td><StatusBadge status={row.status} fallback="Not started" /></td>
                       <td>{row.totalHours.toFixed(2)}</td>
                       <td>{row.billableHours.toFixed(2)}</td>
                       <td>{row.nonBillableHours.toFixed(2)}</td>

@@ -30,7 +30,8 @@ import type {
   TimeTrackingDashboard,
   TimeTrackingProjectDetail,
   TimeTrackingProjectFilters,
-  TimeTrackingProjectRow
+  TimeTrackingProjectRow,
+  SystemStatusResponse
 } from "../types";
 
 const API_BASE =
@@ -252,6 +253,7 @@ export const api = {
 
   getDashboard: () => request<DashboardSummary>("/dashboard/summary"),
   getDataQuality: () => request<DataQualitySummary>("/data-quality"),
+  getSystemStatus: () => request<SystemStatusResponse>("/system/status"),
   getOrgGroups: (region?: string, country?: string) =>
     request<OrgGroup[]>(`/org/supervisors?${buildQuery({ region, country })}`),
   exportUrl: (path: string, params?: Record<string, string | number | boolean | undefined>) =>
